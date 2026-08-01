@@ -1,0 +1,13 @@
+# Dependências instaladas
+node_modules/
+
+# Segredos e configurações locais
+.env
+.env.*
+!.env.example
+.dev.vars
+.dev.vars.*
+
+# Chaves privadas
+*.key
+*.pem
