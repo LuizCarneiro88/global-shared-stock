@@ -103,6 +103,46 @@
         text-wrap: pretty;
       }
 
+      .actions {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 12px;
+        margin-top: 28px;
+      }
+
+      .action {
+        display: inline-grid;
+        min-height: 52px;
+        padding: 14px 22px;
+        place-items: center;
+        border: 1px solid #555b63;
+        border-radius: 12px;
+        font: inherit;
+        font-weight: 750;
+        text-decoration: none;
+      }
+
+      .action-primary {
+        background: var(--silver);
+        color: #121519;
+      }
+
+      .action-secondary {
+        background: rgba(17, 20, 24, 0.88);
+        color: var(--text);
+      }
+
+      .action:disabled {
+        cursor: not-allowed;
+        opacity: 0.58;
+      }
+
+      .action:focus-visible {
+        outline: 3px solid rgba(197, 201, 206, 0.32);
+        outline-offset: 3px;
+      }
+
       .steps {
         display: grid;
         grid-template-columns: 1fr;
@@ -210,6 +250,15 @@
           redor do mundo e registre seu interesse com rapidez. Nós conectamos
           você a quem possui esse material à pronta entrega.
         </p>
+
+        <div class="actions">
+          <a class="action action-primary" href="cadastro.html">
+            Cadastrar empresa
+          </a>
+          <button class="action action-secondary" type="button" disabled>
+            Entrar
+          </button>
+        </div>
 
         <ol class="steps" aria-label="Como funciona">
           <li>

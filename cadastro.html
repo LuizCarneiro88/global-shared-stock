@@ -1,0 +1,659 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="Solicitação de cadastro empresarial na Global Shared Stock."
+    />
+    <title>Cadastro de empresa | Global Shared Stock</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --background: #090b0d;
+        --surface: #111418;
+        --surface-light: #171b20;
+        --text: #f4f5f6;
+        --muted: #a9afb7;
+        --silver: #c5c9ce;
+        --line: #343940;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        min-width: 320px;
+        min-height: 100vh;
+        margin: 0;
+        background:
+          radial-gradient(circle at 50% 0%, #252a30 0, transparent 34rem),
+          var(--background);
+        color: var(--text);
+        font-family:
+          Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+          "Segoe UI", sans-serif;
+      }
+
+      main {
+        width: min(100% - 24px, 760px);
+        margin: 0 auto;
+        padding: 28px 0 56px;
+      }
+
+      header {
+        margin-bottom: 32px;
+        text-align: center;
+      }
+
+      .brand {
+        margin: 0 0 28px;
+        color: var(--silver);
+        font-size: 0.76rem;
+        font-weight: 700;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+      }
+
+      h1 {
+        margin: 0;
+        font-size: clamp(2rem, 10vw, 3.7rem);
+        line-height: 1.02;
+        letter-spacing: -0.045em;
+        text-wrap: balance;
+      }
+
+      .introduction {
+        max-width: 590px;
+        margin: 18px auto 0;
+        color: var(--muted);
+        font-size: 1rem;
+        line-height: 1.6;
+      }
+
+      form {
+        display: grid;
+        gap: 16px;
+      }
+
+      fieldset {
+        min-width: 0;
+        margin: 0;
+        padding: 22px 16px;
+        border: 1px solid var(--line);
+        border-radius: 18px;
+        background: rgba(17, 20, 24, 0.94);
+      }
+
+      legend {
+        padding: 0 8px;
+        color: var(--silver);
+        font-size: 0.78rem;
+        font-weight: 800;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+      }
+
+      .fields {
+        display: grid;
+        gap: 18px;
+      }
+
+      .field {
+        min-width: 0;
+      }
+
+      label {
+        display: block;
+        margin-bottom: 8px;
+        font-size: 0.92rem;
+        font-weight: 650;
+      }
+
+      .optional {
+        color: var(--muted);
+        font-size: 0.78rem;
+        font-weight: 400;
+      }
+
+      .required::after {
+        margin-left: 4px;
+        color: var(--silver);
+        content: "*";
+      }
+
+      input,
+      select {
+        width: 100%;
+        min-height: 48px;
+        padding: 12px 14px;
+        border: 1px solid #464c54;
+        border-radius: 10px;
+        outline: none;
+        background: var(--surface-light);
+        color: var(--text);
+        font: inherit;
+      }
+
+      input[type="file"] {
+        min-height: 54px;
+        padding: 9px;
+        color: var(--muted);
+        font-size: 0.86rem;
+      }
+
+      input::file-selector-button {
+        margin-right: 10px;
+        padding: 8px 10px;
+        border: 0;
+        border-radius: 7px;
+        background: var(--silver);
+        color: #121519;
+        font-weight: 700;
+      }
+
+      input:focus,
+      select:focus {
+        border-color: var(--silver);
+        box-shadow: 0 0 0 3px rgba(197, 201, 206, 0.12);
+      }
+
+      input[aria-invalid="true"],
+      select[aria-invalid="true"] {
+        border-color: #d99393;
+      }
+
+      .help {
+        margin: 7px 0 0;
+        color: var(--muted);
+        font-size: 0.78rem;
+        line-height: 1.45;
+      }
+
+      .error {
+        margin: 7px 0 0;
+        color: #efaaaa;
+        font-size: 0.8rem;
+        line-height: 1.4;
+      }
+
+      .required-note {
+        margin: 0 0 16px;
+        color: var(--muted);
+        font-size: 0.8rem;
+      }
+
+      button {
+        width: 100%;
+        min-height: 52px;
+        margin-top: 4px;
+        border: 1px solid #555b63;
+        border-radius: 12px;
+        background: var(--silver);
+        color: #121519;
+        font: inherit;
+        font-weight: 750;
+        cursor: pointer;
+      }
+
+      button:focus-visible {
+        outline: 3px solid rgba(197, 201, 206, 0.32);
+        outline-offset: 3px;
+      }
+
+      button:disabled {
+        cursor: not-allowed;
+        opacity: 0.58;
+      }
+
+      .review-actions {
+        display: grid;
+        gap: 12px;
+      }
+
+      .secondary-button {
+        border-color: #555b63;
+        background: transparent;
+        color: var(--text);
+      }
+
+      .review {
+        padding: 24px 16px;
+        border: 1px solid var(--line);
+        border-radius: 18px;
+        background: rgba(17, 20, 24, 0.96);
+      }
+
+      .review[hidden] {
+        display: none;
+      }
+
+      .review h2 {
+        margin: 0;
+        font-size: 1.65rem;
+      }
+
+      .review-introduction {
+        margin: 10px 0 24px;
+        color: var(--muted);
+        line-height: 1.55;
+      }
+
+      .review-list {
+        display: grid;
+        gap: 14px;
+        margin: 0 0 24px;
+      }
+
+      .review-item {
+        padding-bottom: 14px;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .review-item dt {
+        margin-bottom: 5px;
+        color: var(--muted);
+        font-size: 0.78rem;
+      }
+
+      .review-item dd {
+        margin: 0;
+        overflow-wrap: anywhere;
+      }
+
+      @media (min-width: 650px) {
+        main {
+          padding: 48px 0 72px;
+        }
+
+        fieldset {
+          padding: 28px;
+        }
+
+        .fields.two-columns {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <p class="brand">Global Shared Stock</p>
+        <h1>Cadastre sua empresa</h1>
+        <p class="introduction">
+          Envie os dados para análise. O acesso à plataforma será liberado
+          somente depois da aprovação do cadastro.
+        </p>
+      </header>
+
+      <form id="company-form" novalidate>
+        <p class="required-note">Os campos marcados com * são obrigatórios.</p>
+
+        <fieldset>
+          <legend>1. Empresa</legend>
+          <div class="fields two-columns">
+            <div class="field">
+              <label class="required" for="company-name">Nome da empresa</label>
+              <input
+                id="company-name"
+                name="company-name"
+                type="text"
+                required
+              />
+            </div>
+
+            <div class="field">
+              <label class="required" for="cnpj">CNPJ</label>
+              <input
+                id="cnpj"
+                name="cnpj"
+                inputmode="numeric"
+                type="text"
+                required
+              />
+            </div>
+
+            <div class="field">
+              <label for="state-registration">
+                Inscrição estadual <span class="optional">(quando aplicável)</span>
+              </label>
+              <input
+                id="state-registration"
+                name="state-registration"
+                type="text"
+              />
+            </div>
+
+            <div class="field">
+              <label for="city-registration">
+                Inscrição municipal <span class="optional">(quando aplicável)</span>
+              </label>
+              <input
+                id="city-registration"
+                name="city-registration"
+                type="text"
+              />
+            </div>
+          </div>
+        </fieldset>
+
+        <fieldset>
+          <legend>2. Documentos</legend>
+          <div class="fields">
+            <div class="field">
+              <label class="required" for="cnpj-document">Cartão CNPJ</label>
+              <input
+                id="cnpj-document"
+                name="cnpj-document"
+                type="file"
+                accept=".pdf,application/pdf"
+                required
+              />
+            </div>
+
+            <div class="field">
+              <label class="required" for="company-documents">
+                Contrato social e alterações
+              </label>
+              <input
+                id="company-documents"
+                name="company-documents"
+                type="file"
+                accept=".pdf,application/pdf"
+                multiple
+                required
+              />
+              <p class="help">
+                Envie somente arquivos PDF, com no máximo 10 MB por arquivo. É
+                possível selecionar mais de um arquivo.
+              </p>
+            </div>
+          </div>
+        </fieldset>
+
+        <fieldset>
+          <legend>3. Contatos</legend>
+          <div class="fields two-columns">
+            <div class="field">
+              <label class="required" for="primary-contact">
+                Nome do contato principal
+              </label>
+              <input
+                id="primary-contact"
+                name="primary-contact"
+                type="text"
+                required
+              />
+            </div>
+
+            <div class="field">
+              <label class="required" for="primary-email">E-mail principal</label>
+              <input
+                id="primary-email"
+                name="primary-email"
+                type="email"
+                required
+              />
+            </div>
+
+            <div class="field">
+              <label for="copy-email-one">
+                E-mail em cópia <span class="optional">(opcional)</span>
+              </label>
+              <input id="copy-email-one" name="copy-email-one" type="email" />
+            </div>
+
+            <div class="field">
+              <label for="copy-email-two">
+                Segundo e-mail em cópia <span class="optional">(opcional)</span>
+              </label>
+              <input id="copy-email-two" name="copy-email-two" type="email" />
+            </div>
+          </div>
+        </fieldset>
+
+        <fieldset>
+          <legend>4. Perfil comercial</legend>
+          <div class="fields two-columns">
+            <div class="field">
+              <label class="required" for="interest">Interesse</label>
+              <select id="interest" name="interest" required>
+                <option value="">Selecione</option>
+                <option value="buy">Compra</option>
+                <option value="sell">Venda</option>
+                <option value="both">Compra e venda</option>
+              </select>
+            </div>
+
+            <div class="field">
+              <label class="required" for="inventory-size">
+                Tamanho do estoque
+              </label>
+              <select id="inventory-size" name="inventory-size" required>
+                <option value="">Selecione</option>
+                <option value="under-100k">Abaixo de R$ 100 mil</option>
+                <option value="100k-to-999k">Entre R$ 100 mil e R$ 999 mil</option>
+                <option value="1m-to-5m">Entre R$ 1 milhão e R$ 5 milhões</option>
+                <option value="over-5m">Acima de R$ 5 milhões</option>
+              </select>
+            </div>
+          </div>
+        </fieldset>
+
+        <button type="submit">Revisar solicitação</button>
+      </form>
+
+      <section id="review" class="review" aria-labelledby="review-title" hidden>
+        <h2 id="review-title" tabindex="-1">Confira sua solicitação</h2>
+        <p class="review-introduction">
+          Revise os dados abaixo. Nenhuma informação foi enviada ou salva.
+        </p>
+        <dl id="review-list" class="review-list"></dl>
+        <div class="review-actions">
+          <button type="button" disabled>Enviar cadastro</button>
+          <button id="edit-form" class="secondary-button" type="button">
+            Voltar e corrigir
+          </button>
+        </div>
+      </section>
+    </main>
+
+    <script>
+      const form = document.querySelector("#company-form");
+      const review = document.querySelector("#review");
+      const reviewList = document.querySelector("#review-list");
+      const editButton = document.querySelector("#edit-form");
+      const maximumFileSize = 10 * 1024 * 1024;
+
+      const fieldLabels = {
+        "company-name": "Nome da empresa",
+        cnpj: "CNPJ",
+        "state-registration": "Inscrição estadual",
+        "city-registration": "Inscrição municipal",
+        "cnpj-document": "Cartão CNPJ",
+        "company-documents": "Contrato social e alterações",
+        "primary-contact": "Nome do contato principal",
+        "primary-email": "E-mail principal",
+        "copy-email-one": "E-mail em cópia",
+        "copy-email-two": "Segundo e-mail em cópia",
+        interest: "Interesse",
+        "inventory-size": "Tamanho do estoque",
+      };
+
+      function digitsOnly(value) {
+        return value.replace(/\D/g, "");
+      }
+
+      function isValidCnpj(value) {
+        const cnpj = digitsOnly(value);
+
+        if (cnpj.length !== 14 || /^(\d)\1{13}$/.test(cnpj)) {
+          return false;
+        }
+
+        function calculateDigit(base, weights) {
+          const total = base
+            .split("")
+            .reduce((sum, digit, index) => sum + Number(digit) * weights[index], 0);
+          const remainder = total % 11;
+          return remainder < 2 ? 0 : 11 - remainder;
+        }
+
+        const firstDigit = calculateDigit(
+          cnpj.slice(0, 12),
+          [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2],
+        );
+        const secondDigit = calculateDigit(
+          cnpj.slice(0, 12) + firstDigit,
+          [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2],
+        );
+
+        return cnpj.endsWith(`${firstDigit}${secondDigit}`);
+      }
+
+      function clearErrors() {
+        form.querySelectorAll(".error").forEach((error) => error.remove());
+        form.querySelectorAll('[aria-invalid="true"]').forEach((field) => {
+          field.removeAttribute("aria-invalid");
+          field.removeAttribute("aria-describedby");
+        });
+      }
+
+      function showError(field, message) {
+        const error = document.createElement("p");
+        const errorId = `${field.id}-error`;
+        error.className = "error";
+        error.id = errorId;
+        error.textContent = message;
+        field.setAttribute("aria-invalid", "true");
+        field.setAttribute("aria-describedby", errorId);
+        field.closest(".field").append(error);
+      }
+
+      function validateRequiredField(field) {
+        const emptyFile = field.type === "file" && field.files.length === 0;
+        const emptyValue = field.type !== "file" && !field.value.trim();
+
+        if (field.required && (emptyFile || emptyValue)) {
+          showError(field, "Preencha este campo obrigatório.");
+          return false;
+        }
+
+        return true;
+      }
+
+      function validateEmail(field) {
+        if (!field.value || field.validity.valid) {
+          return true;
+        }
+
+        showError(field, "Informe um e-mail válido.");
+        return false;
+      }
+
+      function validateFiles(field) {
+        let valid = true;
+
+        Array.from(field.files).forEach((file) => {
+          const isPdf =
+            file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf");
+
+          if (!isPdf && valid) {
+            showError(field, "Envie somente arquivos PDF.");
+            valid = false;
+          } else if (file.size > maximumFileSize && valid) {
+            showError(field, `O arquivo “${file.name}” ultrapassa o limite de 10 MB.`);
+            valid = false;
+          }
+        });
+
+        return valid;
+      }
+
+      function fieldDisplayValue(field) {
+        if (field.type === "file") {
+          const names = Array.from(field.files).map((file) => file.name);
+          return names.length ? names.join(", ") : "Não informado";
+        }
+
+        if (field.tagName === "SELECT") {
+          return field.value ? field.options[field.selectedIndex].text : "Não informado";
+        }
+
+        return field.value.trim() || "Não informado";
+      }
+
+      function showReview() {
+        reviewList.replaceChildren();
+
+        Object.keys(fieldLabels).forEach((fieldId) => {
+          const field = document.getElementById(fieldId);
+          const item = document.createElement("div");
+          const term = document.createElement("dt");
+          const description = document.createElement("dd");
+
+          item.className = "review-item";
+          term.textContent = fieldLabels[fieldId];
+          description.textContent = fieldDisplayValue(field);
+          item.append(term, description);
+          reviewList.append(item);
+        });
+
+        form.hidden = true;
+        review.hidden = false;
+        review.scrollIntoView({ behavior: "smooth", block: "start" });
+        review.querySelector("h2").focus({ preventScroll: true });
+      }
+
+      form.addEventListener("submit", (event) => {
+        event.preventDefault();
+        clearErrors();
+
+        let valid = true;
+        const fields = Array.from(form.elements).filter(
+          (field) => field instanceof HTMLInputElement || field instanceof HTMLSelectElement,
+        );
+
+        fields.forEach((field) => {
+          if (!validateRequiredField(field)) {
+            valid = false;
+            return;
+          }
+
+          if (field.type === "email" && !validateEmail(field)) {
+            valid = false;
+          }
+
+          if (field.type === "file" && !validateFiles(field)) {
+            valid = false;
+          }
+        });
+
+        const cnpjField = document.querySelector("#cnpj");
+        if (cnpjField.value && !isValidCnpj(cnpjField.value)) {
+          showError(cnpjField, "Informe um CNPJ válido.");
+          valid = false;
+        }
+
+        if (!valid) {
+          const firstInvalidField = form.querySelector('[aria-invalid="true"]');
+          firstInvalidField?.focus();
+          firstInvalidField?.scrollIntoView({ behavior: "smooth", block: "center" });
+          return;
+        }
+
+        showReview();
+      });
+
+      editButton.addEventListener("click", () => {
+        review.hidden = true;
+        form.hidden = false;
+        form.scrollIntoView({ behavior: "smooth", block: "start" });
+        document.querySelector("#company-name").focus({ preventScroll: true });
+      });
+    </script>
+  </body>
+</html>
