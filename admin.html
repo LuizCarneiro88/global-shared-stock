@@ -363,7 +363,7 @@
         <dl class="details">
           <div class="detail">
             <dt>CNPJ</dt>
-            <dd>12.345.678/0001-95</dd>
+            <dd>00000000000000</dd>
           </div>
           <div class="detail">
             <dt>Interesse</dt>
@@ -391,12 +391,12 @@
           <h3 id="documents-title">Documentos</h3>
           <ul class="document-list">
             <li class="document">
-              <span class="document-name">cartao-cnpj-exemplo.pdf</span>
-              <button class="document-button" type="button">Visualizar</button>
+              <span class="document-name">cnpj-empresa-exemplo.html</span>
+              <a class="document-button" href="documentos/cnpj-empresa-exemplo.html" target="_blank" rel="noopener">Visualizar</a>
             </li>
             <li class="document">
-              <span class="document-name">contrato-social-exemplo.pdf</span>
-              <button class="document-button" type="button">Visualizar</button>
+              <span class="document-name">contrato-social-exemplo.html</span>
+              <a class="document-button" href="documentos/contrato-social-exemplo.html" target="_blank" rel="noopener">Visualizar</a>
             </li>
           </ul>
         </section>
@@ -421,7 +421,6 @@
       const feedback = document.querySelector("#feedback");
       const approveButton = document.querySelector("#approve");
       const rejectButton = document.querySelector("#reject");
-      const documentButtons = document.querySelectorAll(".document-button");
 
       function updateStatus(label, className, message) {
         status.textContent = label;
@@ -447,14 +446,6 @@
         );
       });
 
-      documentButtons.forEach((button) => {
-        button.addEventListener("click", () => {
-          feedback.textContent =
-            "Este é um documento fictício. A visualização será conectada depois.";
-          feedback.hidden = false;
-          feedback.focus();
-        });
-      });
     </script>
   </body>
 </html>
