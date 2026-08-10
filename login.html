@@ -271,7 +271,8 @@
 
           const next = new URLSearchParams(window.location.search).get("next");
           const safeNext = next?.startsWith("/") && !next.startsWith("//");
-          window.location.href = safeNext ? next : "/admin";
+          const roleAllowsNext = result.role === "admin" ? !next?.startsWith("/empresa") : next?.startsWith("/empresa");
+          window.location.href = safeNext && roleAllowsNext ? next : result.destination;
         } catch (error) {
           status.textContent = error.message;
           status.hidden = false;

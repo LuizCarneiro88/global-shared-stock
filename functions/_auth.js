@@ -1,5 +1,6 @@
 const encoder = new TextEncoder();
 const SESSION_DURATION_SECONDS = 8 * 60 * 60;
+const PASSWORD_ITERATIONS = 100000;
 
 function bytesToBase64Url(bytes) {
   let binary = "";
@@ -7,15 +8,18 @@ function bytesToBase64Url(bytes) {
   return btoa(binary).replaceAll("+", "-").replaceAll("/", "_").replaceAll("=", "");
 }
 
+function base64UrlToBytes(value) {
+  const base64 = value.replaceAll("-", "+").replaceAll("_", "/");
+  const padded = base64.padEnd(Math.ceil(base64.length / 4) * 4, "=");
+  return Uint8Array.from(atob(padded), (character) => character.charCodeAt(0));
+}
+
 function textToBase64Url(value) {
   return bytesToBase64Url(encoder.encode(value));
 }
 
 function base64UrlToText(value) {
-  const base64 = value.replaceAll("-", "+").replaceAll("_", "/");
-  const padded = base64.padEnd(Math.ceil(base64.length / 4) * 4, "=");
-  const bytes = Uint8Array.from(atob(padded), (character) => character.charCodeAt(0));
-  return new TextDecoder().decode(bytes);
+  return new TextDecoder().decode(base64UrlToBytes(value));
 }
 
 async function digest(value) {
@@ -29,13 +33,13 @@ function equalBytes(first, second) {
   return difference === 0;
 }
 
-async function signingKey(password) {
-  const material = await digest(`global-shared-stock-session:${password}`);
+async function signingKey(secret) {
+  const material = await digest(`global-shared-stock-session:${secret}`);
   return crypto.subtle.importKey("raw", material, { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
 }
 
-async function sign(payload, password) {
-  const signature = await crypto.subtle.sign("HMAC", await signingKey(password), encoder.encode(payload));
+async function sign(payload, secret) {
+  const signature = await crypto.subtle.sign("HMAC", await signingKey(secret), encoder.encode(payload));
   return bytesToBase64Url(new Uint8Array(signature));
 }
 
@@ -52,46 +56,70 @@ export function configuredCredentials(env) {
 export async function credentialsAreValid(email, password, env) {
   const configured = configuredCredentials(env);
   if (!configured || typeof email !== "string" || typeof password !== "string") return false;
-  const receivedEmail = await digest(email.trim().toLowerCase());
-  const expectedEmail = await digest(configured.email);
-  const receivedPassword = await digest(password);
-  const expectedPassword = await digest(configured.password);
-  return equalBytes(receivedEmail, expectedEmail) && equalBytes(receivedPassword, expectedPassword);
+  return equalBytes(await digest(email.trim().toLowerCase()), await digest(configured.email)) &&
+    equalBytes(await digest(password), await digest(configured.password));
 }
 
-export async function createSession(email, env) {
+export async function hashEmail(email) {
+  return bytesToBase64Url(await digest(email.trim().toLowerCase()));
+}
+
+export async function hashPassword(password, salt = crypto.getRandomValues(new Uint8Array(16))) {
+  const material = await crypto.subtle.importKey("raw", encoder.encode(password), "PBKDF2", false, ["deriveBits"]);
+  const result = await crypto.subtle.deriveBits(
+    { name: "PBKDF2", hash: "SHA-256", salt, iterations: PASSWORD_ITERATIONS },
+    material,
+    256,
+  );
+  return { hash: bytesToBase64Url(new Uint8Array(result)), salt: bytesToBase64Url(salt), iterations: PASSWORD_ITERATIONS };
+}
+
+export async function sellerCredentialsAreValid(email, password, env) {
+  if (!env.CADASTROS || typeof email !== "string" || typeof password !== "string") return null;
+  const companyId = await env.CADASTROS.get(`conta-email:${await hashEmail(email)}`);
+  if (!companyId) return null;
+  const account = await env.CADASTROS.get(`conta:${companyId}`, "json");
+  if (!account?.active) return null;
+  const candidate = await hashPassword(password, base64UrlToBytes(account.salt));
+  return equalBytes(encoder.encode(candidate.hash), encoder.encode(account.passwordHash)) ? account : null;
+}
+
+export async function createSession(sessionInformation, env) {
   const configured = configuredCredentials(env);
   const payload = textToBase64Url(JSON.stringify({
-    email: email.trim().toLowerCase(),
+    ...sessionInformation,
+    email: sessionInformation.email.trim().toLowerCase(),
     expiresAt: Date.now() + SESSION_DURATION_SECONDS * 1000,
   }));
   return `${payload}.${await sign(payload, configured.password)}`;
 }
 
-export async function sessionIsValid(request, env) {
+export async function getSession(request, env) {
   const configured = configuredCredentials(env);
-  if (!configured) return false;
+  if (!configured) return null;
   const cookie = request.headers.get("Cookie") || "";
-  const match = cookie.match(/(?:^|;\s*)admin_session=([^;]+)/);
-  if (!match) return false;
+  const match = cookie.match(/(?:^|;\s*)global_session=([^;]+)/);
+  if (!match) return null;
 
   try {
     const [payload, receivedSignature] = match[1].split(".");
-    if (!payload || !receivedSignature) return false;
+    if (!payload || !receivedSignature) return null;
     const expectedSignature = await sign(payload, configured.password);
-    const signaturesMatch = equalBytes(encoder.encode(receivedSignature), encoder.encode(expectedSignature));
-    if (!signaturesMatch) return false;
+    if (!equalBytes(encoder.encode(receivedSignature), encoder.encode(expectedSignature))) return null;
     const session = JSON.parse(base64UrlToText(payload));
-    return session.email === configured.email && session.expiresAt > Date.now();
+    if (session.expiresAt <= Date.now()) return null;
+    if (session.role === "admin" && session.email !== configured.email) return null;
+    if (session.role === "company" && !session.companyId) return null;
+    return session;
   } catch {
-    return false;
+    return null;
   }
 }
 
 export function sessionCookie(value) {
-  return `admin_session=${value}; Max-Age=${SESSION_DURATION_SECONDS}; Path=/; HttpOnly; Secure; SameSite=Strict`;
+  return `global_session=${value}; Max-Age=${SESSION_DURATION_SECONDS}; Path=/; HttpOnly; Secure; SameSite=Strict`;
 }
 
 export function expiredSessionCookie() {
-  return "admin_session=; Max-Age=0; Path=/; HttpOnly; Secure; SameSite=Strict";
+  return "global_session=; Max-Age=0; Path=/; HttpOnly; Secure; SameSite=Strict";
 }

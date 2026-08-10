@@ -298,6 +298,31 @@
         display: none;
       }
 
+      .access-panel {
+        display: grid;
+        gap: 10px;
+        margin-top: 16px;
+        padding: 14px;
+        border: 1px solid var(--line);
+        border-radius: 11px;
+        background: var(--surface-light);
+      }
+
+      .access-panel[hidden] {
+        display: none;
+      }
+
+      .access-link {
+        width: 100%;
+        min-height: 44px;
+        padding: 10px;
+        border: 1px solid #555b63;
+        border-radius: 9px;
+        background: var(--surface);
+        color: var(--text);
+        font: inherit;
+      }
+
       .back-link {
         display: block;
         width: fit-content;
@@ -490,6 +515,28 @@
         feedback.tabIndex = -1;
         feedback.hidden = true;
 
+        const accessPanel = document.createElement("section");
+        accessPanel.className = "access-panel";
+        accessPanel.hidden = company.status !== "approved";
+        const accessTitle = document.createElement("h3");
+        accessTitle.textContent = "Acesso da empresa";
+        const generateAccessButton = document.createElement("button");
+        generateAccessButton.className = "action-button reject-button";
+        generateAccessButton.type = "button";
+        generateAccessButton.textContent = "Gerar link de acesso";
+        const accessLink = document.createElement("input");
+        accessLink.className = "access-link";
+        accessLink.type = "text";
+        accessLink.readOnly = true;
+        accessLink.hidden = true;
+        accessLink.setAttribute("aria-label", "Link temporário de acesso");
+        const copyAccessButton = document.createElement("button");
+        copyAccessButton.className = "action-button approve-button";
+        copyAccessButton.type = "button";
+        copyAccessButton.textContent = "Copiar link";
+        copyAccessButton.hidden = true;
+        accessPanel.append(accessTitle, generateAccessButton, accessLink, copyAccessButton);
+
         async function updateStatus(newStatus) {
           approveButton.disabled = true;
           rejectButton.disabled = true;
@@ -507,6 +554,7 @@
             const information = statusLabels[newStatus];
             status.className = `status ${information.className}`;
             status.textContent = information.label;
+            accessPanel.hidden = newStatus !== "approved";
             feedback.textContent = newStatus === "approved" ? "Empresa aprovada com sucesso." : "Cadastro recusado com sucesso.";
             feedback.hidden = false;
             feedback.focus();
@@ -523,7 +571,32 @@
 
         approveButton.addEventListener("click", () => updateStatus("approved"));
         rejectButton.addEventListener("click", () => updateStatus("rejected"));
-        article.append(cardHeader, details, documents, actions, feedback);
+        generateAccessButton.addEventListener("click", async () => {
+          generateAccessButton.disabled = true;
+          feedback.hidden = true;
+          try {
+            const response = await fetch(`/api/cadastros/${company.id}/acesso`, { method: "POST" });
+            const result = await response.json();
+            if (!response.ok) throw new Error(result.message || "Não foi possível gerar o link.");
+            accessLink.value = result.link;
+            accessLink.hidden = false;
+            copyAccessButton.hidden = false;
+            feedback.textContent = "Link criado. Ele vence em 24 horas e pode ser usado uma vez.";
+            feedback.hidden = false;
+            feedback.focus();
+          } catch (error) {
+            feedback.textContent = error.message;
+            feedback.hidden = false;
+            feedback.focus();
+          } finally {
+            generateAccessButton.disabled = false;
+          }
+        });
+        copyAccessButton.addEventListener("click", async () => {
+          await navigator.clipboard.writeText(accessLink.value);
+          copyAccessButton.textContent = "Link copiado";
+        });
+        article.append(cardHeader, details, documents, actions, feedback, accessPanel);
         return article;
       }
 
