@@ -3,7 +3,10 @@ import { sessionIsValid } from "./_auth.js";
 export async function onRequest(context) {
   const url = new URL(context.request.url);
 
-  if (url.pathname === "/api/login") {
+  if (
+    url.pathname === "/api/login" ||
+    (url.pathname === "/api/cadastros" && context.request.method === "POST")
+  ) {
     return context.next();
   }
 

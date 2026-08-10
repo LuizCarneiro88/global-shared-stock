@@ -263,6 +263,26 @@
         line-height: 1.55;
       }
 
+      .submission-status {
+        margin: 18px 0 0;
+        padding: 14px;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        color: var(--muted);
+        line-height: 1.5;
+        text-align: center;
+      }
+
+      .submission-status.success {
+        border-color: #57735c;
+        color: #acd2b1;
+      }
+
+      .submission-status.error {
+        border-color: #805858;
+        color: #efaaaa;
+      }
+
       .review-list {
         display: grid;
         gap: 14px;
@@ -485,15 +505,16 @@
       <section id="review" class="review" aria-labelledby="review-title" hidden>
         <h2 id="review-title" tabindex="-1">Confira sua solicitação</h2>
         <p class="review-introduction">
-          Revise os dados abaixo. Nenhuma informação foi enviada ou salva.
+          Revise os dados abaixo antes de enviar.
         </p>
         <dl id="review-list" class="review-list"></dl>
         <div class="review-actions">
-          <button type="button" disabled>Enviar cadastro</button>
+          <button id="submit-request" type="button">Enviar cadastro</button>
           <button id="edit-form" class="secondary-button" type="button">
             Voltar e corrigir
           </button>
         </div>
+        <p id="submission-status" class="submission-status" role="status" tabindex="-1" hidden></p>
       </section>
     </main>
 
@@ -502,7 +523,10 @@
       const review = document.querySelector("#review");
       const reviewList = document.querySelector("#review-list");
       const editButton = document.querySelector("#edit-form");
+      const submitRequestButton = document.querySelector("#submit-request");
+      const submissionStatus = document.querySelector("#submission-status");
       const maximumFileSize = 10 * 1024 * 1024;
+      let requestId = crypto.randomUUID();
 
       const fieldLabels = {
         "company-name": "Nome da empresa",
@@ -689,6 +713,42 @@
         form.hidden = false;
         form.scrollIntoView({ behavior: "smooth", block: "start" });
         document.querySelector("#company-name").focus({ preventScroll: true });
+      });
+
+      submitRequestButton.addEventListener("click", async () => {
+        submitRequestButton.disabled = true;
+        editButton.disabled = true;
+        submitRequestButton.textContent = "Enviando cadastro...";
+        submissionStatus.hidden = true;
+
+        const data = new FormData(form);
+        data.append("request-id", requestId);
+
+        try {
+          const response = await fetch("/api/cadastros", { method: "POST", body: data });
+          const result = await response.json();
+
+          if (!response.ok) {
+            throw new Error(result.message || "Não foi possível enviar o cadastro.");
+          }
+
+          submissionStatus.textContent =
+            "Cadastro enviado com sucesso. A empresa receberá um retorno após a análise.";
+          submissionStatus.className = "submission-status success";
+          submissionStatus.hidden = false;
+          submissionStatus.focus();
+          submitRequestButton.textContent = "Cadastro enviado";
+          form.reset();
+          requestId = crypto.randomUUID();
+        } catch (error) {
+          submissionStatus.textContent = error.message;
+          submissionStatus.className = "submission-status error";
+          submissionStatus.hidden = false;
+          submissionStatus.focus();
+          submitRequestButton.disabled = false;
+          editButton.disabled = false;
+          submitRequestButton.textContent = "Tentar novamente";
+        }
       });
     </script>
   </body>
