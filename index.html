@@ -59,11 +59,10 @@
       }
 
       main {
-        position: relative;
         width: min(100% - 32px, 920px);
         min-height: 100vh;
         margin: 0 auto;
-        padding: 112px 0 32px;
+        padding: 32px 0;
         display: grid;
         place-items: center;
       }
@@ -74,11 +73,11 @@
       }
 
       .brand {
-        margin: 0;
+        margin: 0 0 22px;
         color: var(--silver);
-        font-size: 0.78rem;
-        font-weight: 700;
-        letter-spacing: 0.18em;
+        font-size: clamp(1.15rem, 4vw, 1.75rem);
+        font-weight: 800;
+        letter-spacing: 0.16em;
         text-transform: uppercase;
       }
 
@@ -107,19 +106,9 @@
       .actions {
         display: flex;
         flex-wrap: wrap;
-        justify-content: flex-end;
+        justify-content: center;
         gap: 12px;
-      }
-
-      .topbar {
-        position: absolute;
-        top: 32px;
-        left: 0;
-        display: flex;
-        width: 100%;
-        align-items: center;
-        justify-content: space-between;
-        gap: 16px;
+        margin-bottom: 48px;
       }
 
       .action {
@@ -202,7 +191,7 @@
 
       @media (min-width: 700px) {
         main {
-          padding: 128px 0 56px;
+          padding: 56px 0;
         }
 
         .steps {
@@ -225,28 +214,7 @@
 
         main {
           width: min(100% - 24px, 920px);
-          padding: 104px 0 24px;
-        }
-
-        .topbar {
-          top: 24px;
-          gap: 10px;
-        }
-
-        .topbar .brand {
-          font-size: 0.66rem;
-          letter-spacing: 0.12em;
-        }
-
-        .topbar .actions {
-          flex-wrap: nowrap;
-          gap: 8px;
-        }
-
-        .topbar .action {
-          min-height: 44px;
-          padding: 10px 12px;
-          font-size: 0.82rem;
+          padding: 24px 0;
         }
 
         h1 {
@@ -265,17 +233,16 @@
   </head>
   <body>
     <main>
-      <header class="topbar">
+      <div class="content">
         <p class="brand">Global Shared Stock</p>
+
         <div class="actions">
           <a class="action action-primary" href="cadastro.html">Cadastrar</a>
           <button class="action action-secondary" type="button" disabled>
             Entrar
           </button>
         </div>
-      </header>
 
-      <div class="content">
         <h1>
           Agora você acessa um estoque global com apenas
           <span class="accent">1 click!</span>
