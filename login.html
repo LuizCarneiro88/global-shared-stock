@@ -145,6 +145,11 @@
         cursor: pointer;
       }
 
+      button:disabled {
+        cursor: wait;
+        opacity: 0.7;
+      }
+
       button:focus-visible,
       .back-link:focus-visible {
         outline: 3px solid rgba(197, 201, 206, 0.32);
@@ -207,7 +212,7 @@
           <p class="brand">Global Shared Stock</p>
           <h1>Entrar</h1>
           <p class="introduction">
-            Acesse a plataforma com os dados da sua empresa.
+            Acesso restrito à administração da plataforma.
           </p>
         </header>
 
@@ -222,10 +227,10 @@
             <input id="password" name="password" type="password" required />
           </div>
 
-          <button type="submit">Entrar</button>
+          <button id="submit-button" type="submit">Entrar</button>
 
           <p id="status" class="status" role="status" tabindex="-1" hidden>
-            O acesso ainda não está disponível. Esta tela está em validação.
+            Não foi possível entrar.
           </p>
         </form>
 
@@ -236,16 +241,46 @@
     <script>
       const form = document.querySelector("#login-form");
       const status = document.querySelector("#status");
+      const submitButton = document.querySelector("#submit-button");
 
-      form.addEventListener("submit", (event) => {
+      form.addEventListener("submit", async (event) => {
         event.preventDefault();
 
         if (!form.reportValidity()) {
           return;
         }
 
-        status.hidden = false;
-        status.focus();
+        submitButton.disabled = true;
+        submitButton.textContent = "Entrando...";
+        status.hidden = true;
+
+        try {
+          const response = await fetch("/api/login", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              email: form.email.value,
+              password: form.password.value,
+            }),
+          });
+
+          if (!response.ok) {
+            const result = await response.json();
+            throw new Error(result.message || "E-mail ou senha incorretos.");
+          }
+
+          const next = new URLSearchParams(window.location.search).get("next");
+          const safeNext = next?.startsWith("/") && !next.startsWith("//");
+          window.location.href = safeNext ? next : "/admin";
+        } catch (error) {
+          status.textContent = error.message;
+          status.hidden = false;
+          status.focus();
+          form.password.value = "";
+        } finally {
+          submitButton.disabled = false;
+          submitButton.textContent = "Entrar";
+        }
       });
     </script>
   </body>

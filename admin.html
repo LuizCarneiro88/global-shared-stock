@@ -291,6 +291,22 @@
         text-underline-offset: 4px;
       }
 
+      .logout-form {
+        margin-top: 18px;
+        text-align: center;
+      }
+
+      .logout-button {
+        min-height: 44px;
+        padding: 8px 16px;
+        border: 1px solid #555b63;
+        border-radius: 10px;
+        background: rgba(17, 20, 24, 0.94);
+        color: var(--silver);
+        font: inherit;
+        cursor: pointer;
+      }
+
       @media (min-width: 650px) {
         main {
           padding: 48px 0 72px;
@@ -414,6 +430,9 @@
       </article>
 
       <a class="back-link" href="index.html">Voltar ao início</a>
+      <form class="logout-form" action="/api/logout" method="post">
+        <button class="logout-button" type="submit">Sair da administração</button>
+      </form>
     </main>
 
     <script>
