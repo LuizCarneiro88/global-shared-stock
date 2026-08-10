@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Área de análise da Global Shared Stock." />
+    <title>Administração | Global Shared Stock</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --background: #090b0d;
+        --surface: #111418;
+        --surface-light: #171b20;
+        --text: #f4f5f6;
+        --muted: #a9afb7;
+        --silver: #c5c9ce;
+        --line: #343940;
+        --success: #acd2b1;
+        --danger: #efaaaa;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html {
+        background: var(--background);
+      }
+
+      body {
+        position: relative;
+        isolation: isolate;
+        min-width: 320px;
+        min-height: 100vh;
+        margin: 0;
+        overflow-x: hidden;
+        background: var(--background);
+        color: var(--text);
+        font-family:
+          Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+          "Segoe UI", sans-serif;
+      }
+
+      body::before {
+        position: fixed;
+        z-index: -1;
+        inset: 0;
+        content: "";
+        background:
+          linear-gradient(
+            180deg,
+            rgba(9, 11, 13, 0.38),
+            rgba(9, 11, 13, 0.7)
+          ),
+          url("assets/global-shared-stock-background.png") center / cover
+            no-repeat;
+        opacity: 0.78;
+        pointer-events: none;
+      }
+
+      main {
+        width: min(100% - 24px, 900px);
+        margin: 0 auto;
+        padding: 28px 0 56px;
+      }
+
+      header {
+        margin-bottom: 32px;
+        text-align: center;
+      }
+
+      .brand {
+        margin: 0 0 28px;
+        color: var(--silver);
+        font-size: clamp(1.15rem, 4vw, 1.75rem);
+        font-weight: 800;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+      }
+
+      h1 {
+        margin: 0;
+        font-size: clamp(2rem, 10vw, 3.7rem);
+        line-height: 1.02;
+        letter-spacing: -0.045em;
+        text-wrap: balance;
+      }
+
+      .introduction {
+        max-width: 620px;
+        margin: 18px auto 0;
+        color: var(--muted);
+        line-height: 1.6;
+      }
+
+      .summary {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+        margin-bottom: 20px;
+      }
+
+      .summary-item {
+        padding: 18px;
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        background: rgba(17, 20, 24, 0.94);
+      }
+
+      .summary-number {
+        display: block;
+        margin-bottom: 5px;
+        font-size: 1.7rem;
+        font-weight: 800;
+      }
+
+      .summary-label {
+        color: var(--muted);
+        font-size: 0.8rem;
+      }
+
+      .company-card {
+        padding: 22px 16px;
+        border: 1px solid var(--line);
+        border-radius: 18px;
+        background: rgba(17, 20, 24, 0.96);
+      }
+
+      .card-header {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 12px;
+        padding-bottom: 18px;
+        border-bottom: 1px solid var(--line);
+      }
+
+      h2 {
+        margin: 0;
+        font-size: 1.45rem;
+      }
+
+      .example-note {
+        margin: 6px 0 0;
+        color: var(--muted);
+        font-size: 0.78rem;
+      }
+
+      .status {
+        padding: 7px 10px;
+        border: 1px solid #5a5f67;
+        border-radius: 999px;
+        color: var(--silver);
+        font-size: 0.75rem;
+        font-weight: 750;
+        white-space: nowrap;
+      }
+
+      .status.approved {
+        border-color: #57735c;
+        color: var(--success);
+      }
+
+      .status.rejected {
+        border-color: #805858;
+        color: var(--danger);
+      }
+
+      .details {
+        display: grid;
+        gap: 16px;
+        margin: 20px 0;
+      }
+
+      .detail {
+        min-width: 0;
+      }
+
+      .detail dt {
+        margin-bottom: 5px;
+        color: var(--muted);
+        font-size: 0.76rem;
+      }
+
+      .detail dd {
+        margin: 0;
+        overflow-wrap: anywhere;
+      }
+
+      .documents {
+        padding: 18px 0;
+        border-top: 1px solid var(--line);
+        border-bottom: 1px solid var(--line);
+      }
+
+      h3 {
+        margin: 0 0 12px;
+        font-size: 0.95rem;
+      }
+
+      .document-list {
+        display: grid;
+        gap: 10px;
+        margin: 0;
+        padding: 0;
+        list-style: none;
+      }
+
+      .document {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 12px;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        background: var(--surface-light);
+      }
+
+      .document-name {
+        min-width: 0;
+        overflow: hidden;
+        font-size: 0.86rem;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .document-button {
+        flex: none;
+        border: 0;
+        background: transparent;
+        color: var(--silver);
+        font: inherit;
+        font-size: 0.8rem;
+        text-decoration: underline;
+        text-underline-offset: 3px;
+        cursor: pointer;
+      }
+
+      .actions {
+        display: grid;
+        gap: 12px;
+        margin-top: 20px;
+      }
+
+      .action-button {
+        min-height: 50px;
+        padding: 12px 16px;
+        border: 1px solid #555b63;
+        border-radius: 11px;
+        font: inherit;
+        font-weight: 750;
+        cursor: pointer;
+      }
+
+      .approve-button {
+        background: var(--silver);
+        color: #121519;
+      }
+
+      .reject-button {
+        background: transparent;
+        color: var(--text);
+      }
+
+      button:focus-visible,
+      .back-link:focus-visible {
+        outline: 3px solid rgba(197, 201, 206, 0.32);
+        outline-offset: 3px;
+      }
+
+      .feedback {
+        margin: 16px 0 0;
+        color: var(--muted);
+        font-size: 0.86rem;
+        line-height: 1.45;
+        text-align: center;
+      }
+
+      .feedback[hidden] {
+        display: none;
+      }
+
+      .back-link {
+        display: block;
+        width: fit-content;
+        margin: 24px auto 0;
+        color: var(--silver);
+        font-size: 0.9rem;
+        text-underline-offset: 4px;
+      }
+
+      @media (min-width: 650px) {
+        main {
+          padding: 48px 0 72px;
+        }
+
+        .summary {
+          max-width: 420px;
+          margin-right: auto;
+          margin-left: auto;
+        }
+
+        .company-card {
+          padding: 28px;
+        }
+
+        .details {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .actions {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+      }
+
+      @media (max-width: 600px) {
+        body::before {
+          background:
+            linear-gradient(
+              180deg,
+              rgba(9, 11, 13, 0.3),
+              rgba(9, 11, 13, 0.72)
+            ),
+            url("assets/global-shared-stock-background.png") center 52% / 100%
+              auto no-repeat;
+          opacity: 0.82;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <p class="brand">Global Shared Stock</p>
+        <h1>Cadastros de empresas</h1>
+        <p class="introduction">
+          Analise os dados enviados antes de liberar o acesso à plataforma.
+        </p>
+      </header>
+
+      <section class="summary" aria-label="Resumo dos cadastros">
+        <div class="summary-item">
+          <strong class="summary-number">1</strong>
+          <span class="summary-label">Aguardando análise</span>
+        </div>
+        <div class="summary-item">
+          <strong class="summary-number">0</strong>
+          <span class="summary-label">Aprovados hoje</span>
+        </div>
+      </section>
+
+      <article class="company-card">
+        <div class="card-header">
+          <div>
+            <h2>Empresa Exemplo Ltda.</h2>
+            <p class="example-note">Dados fictícios para validar o layout</p>
+          </div>
+          <span id="company-status" class="status">Aguardando análise</span>
+        </div>
+
+        <dl class="details">
+          <div class="detail">
+            <dt>CNPJ</dt>
+            <dd>12.345.678/0001-95</dd>
+          </div>
+          <div class="detail">
+            <dt>Interesse</dt>
+            <dd>Compra e venda</dd>
+          </div>
+          <div class="detail">
+            <dt>Contato principal</dt>
+            <dd>Maria da Silva</dd>
+          </div>
+          <div class="detail">
+            <dt>E-mail principal</dt>
+            <dd>maria@empresaexemplo.com.br</dd>
+          </div>
+          <div class="detail">
+            <dt>Tamanho do estoque</dt>
+            <dd>Entre R$ 1 milhão e R$ 5 milhões</dd>
+          </div>
+          <div class="detail">
+            <dt>Recebido em</dt>
+            <dd>9 de agosto de 2026, às 14h30</dd>
+          </div>
+        </dl>
+
+        <section class="documents" aria-labelledby="documents-title">
+          <h3 id="documents-title">Documentos</h3>
+          <ul class="document-list">
+            <li class="document">
+              <span class="document-name">cartao-cnpj-exemplo.pdf</span>
+              <button class="document-button" type="button">Visualizar</button>
+            </li>
+            <li class="document">
+              <span class="document-name">contrato-social-exemplo.pdf</span>
+              <button class="document-button" type="button">Visualizar</button>
+            </li>
+          </ul>
+        </section>
+
+        <div class="actions">
+          <button id="approve" class="action-button approve-button" type="button">
+            Aprovar empresa
+          </button>
+          <button id="reject" class="action-button reject-button" type="button">
+            Recusar cadastro
+          </button>
+        </div>
+
+        <p id="feedback" class="feedback" role="status" tabindex="-1" hidden></p>
+      </article>
+
+      <a class="back-link" href="index.html">Voltar ao início</a>
+    </main>
+
+    <script>
+      const status = document.querySelector("#company-status");
+      const feedback = document.querySelector("#feedback");
+      const approveButton = document.querySelector("#approve");
+      const rejectButton = document.querySelector("#reject");
+      const documentButtons = document.querySelectorAll(".document-button");
+
+      function updateStatus(label, className, message) {
+        status.textContent = label;
+        status.className = `status ${className}`;
+        feedback.textContent = message;
+        feedback.hidden = false;
+        feedback.focus();
+      }
+
+      approveButton.addEventListener("click", () => {
+        updateStatus(
+          "Aprovada",
+          "approved",
+          "Aprovação simulada. Nenhuma informação foi salva.",
+        );
+      });
+
+      rejectButton.addEventListener("click", () => {
+        updateStatus(
+          "Recusada",
+          "rejected",
+          "Recusa simulada. Nenhuma informação foi salva.",
+        );
+      });
+
+      documentButtons.forEach((button) => {
+        button.addEventListener("click", () => {
+          feedback.textContent =
+            "Este é um documento fictício. A visualização será conectada depois.";
+          feedback.hidden = false;
+          feedback.focus();
+        });
+      });
+    </script>
+  </body>
+</html>
