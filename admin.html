@@ -126,6 +126,22 @@
         background: rgba(17, 20, 24, 0.96);
       }
 
+      .company-list {
+        display: grid;
+        gap: 20px;
+      }
+
+      .empty-state {
+        margin: 0;
+        padding: 28px 18px;
+        border: 1px solid var(--line);
+        border-radius: 18px;
+        background: rgba(17, 20, 24, 0.96);
+        color: var(--muted);
+        line-height: 1.5;
+        text-align: center;
+      }
+
       .card-header {
         display: flex;
         flex-wrap: wrap;
@@ -358,76 +374,18 @@
 
       <section class="summary" aria-label="Resumo dos cadastros">
         <div class="summary-item">
-          <strong class="summary-number">1</strong>
+          <strong id="pending-count" class="summary-number">0</strong>
           <span class="summary-label">Aguardando análise</span>
         </div>
         <div class="summary-item">
-          <strong class="summary-number">0</strong>
+          <strong id="approved-count" class="summary-number">0</strong>
           <span class="summary-label">Aprovados hoje</span>
         </div>
       </section>
 
-      <article class="company-card">
-        <div class="card-header">
-          <div>
-            <h2>Empresa Exemplo Ltda.</h2>
-            <p class="example-note">Dados fictícios para validar o layout</p>
-          </div>
-          <span id="company-status" class="status">Aguardando análise</span>
-        </div>
-
-        <dl class="details">
-          <div class="detail">
-            <dt>CNPJ</dt>
-            <dd>00000000000000</dd>
-          </div>
-          <div class="detail">
-            <dt>Interesse</dt>
-            <dd>Compra e venda</dd>
-          </div>
-          <div class="detail">
-            <dt>Contato principal</dt>
-            <dd>Maria da Silva</dd>
-          </div>
-          <div class="detail">
-            <dt>E-mail principal</dt>
-            <dd>maria@empresaexemplo.com.br</dd>
-          </div>
-          <div class="detail">
-            <dt>Tamanho do estoque</dt>
-            <dd>Entre R$ 1 milhão e R$ 5 milhões</dd>
-          </div>
-          <div class="detail">
-            <dt>Recebido em</dt>
-            <dd>9 de agosto de 2026, às 14h30</dd>
-          </div>
-        </dl>
-
-        <section class="documents" aria-labelledby="documents-title">
-          <h3 id="documents-title">Documentos</h3>
-          <ul class="document-list">
-            <li class="document">
-              <span class="document-name">cnpj-empresa-exemplo.html</span>
-              <a class="document-button" href="documentos/cnpj-empresa-exemplo.html" target="_blank" rel="noopener">Visualizar</a>
-            </li>
-            <li class="document">
-              <span class="document-name">contrato-social-exemplo.html</span>
-              <a class="document-button" href="documentos/contrato-social-exemplo.html" target="_blank" rel="noopener">Visualizar</a>
-            </li>
-          </ul>
-        </section>
-
-        <div class="actions">
-          <button id="approve" class="action-button approve-button" type="button">
-            Aprovar empresa
-          </button>
-          <button id="reject" class="action-button reject-button" type="button">
-            Recusar cadastro
-          </button>
-        </div>
-
-        <p id="feedback" class="feedback" role="status" tabindex="-1" hidden></p>
-      </article>
+      <section id="company-list" class="company-list" aria-live="polite">
+        <p class="empty-state">Carregando solicitações...</p>
+      </section>
 
       <a class="back-link" href="index.html">Voltar ao início</a>
       <form class="logout-form" action="/api/logout" method="post">
@@ -436,34 +394,172 @@
     </main>
 
     <script>
-      const status = document.querySelector("#company-status");
-      const feedback = document.querySelector("#feedback");
-      const approveButton = document.querySelector("#approve");
-      const rejectButton = document.querySelector("#reject");
+      const companyList = document.querySelector("#company-list");
+      const pendingCount = document.querySelector("#pending-count");
+      const approvedCount = document.querySelector("#approved-count");
 
-      function updateStatus(label, className, message) {
-        status.textContent = label;
-        status.className = `status ${className}`;
-        feedback.textContent = message;
-        feedback.hidden = false;
-        feedback.focus();
+      const interestLabels = { buy: "Compra", sell: "Venda", both: "Compra e venda" };
+      const inventoryLabels = {
+        "under-100k": "Abaixo de R$ 100 mil",
+        "100k-to-999k": "Entre R$ 100 mil e R$ 999 mil",
+        "1m-to-5m": "Entre R$ 1 milhão e R$ 5 milhões",
+        "over-5m": "Acima de R$ 5 milhões",
+      };
+      const statusLabels = {
+        pending: { label: "Aguardando análise", className: "" },
+        approved: { label: "Aprovada", className: "approved" },
+        rejected: { label: "Recusada", className: "rejected" },
+      };
+
+      function formatCnpj(value) {
+        return value.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, "$1.$2.$3/$4-$5");
       }
 
-      approveButton.addEventListener("click", () => {
-        updateStatus(
-          "Aprovada",
-          "approved",
-          "Aprovação simulada. Nenhuma informação foi salva.",
-        );
-      });
+      function addDetail(list, label, value) {
+        const item = document.createElement("div");
+        const term = document.createElement("dt");
+        const description = document.createElement("dd");
+        item.className = "detail";
+        term.textContent = label;
+        description.textContent = value || "Não informado";
+        item.append(term, description);
+        list.append(item);
+      }
 
-      rejectButton.addEventListener("click", () => {
-        updateStatus(
-          "Recusada",
-          "rejected",
-          "Recusa simulada. Nenhuma informação foi salva.",
-        );
-      });
+      function createCompanyCard(company) {
+        const article = document.createElement("article");
+        article.className = "company-card";
+
+        const cardHeader = document.createElement("div");
+        cardHeader.className = "card-header";
+        const title = document.createElement("h2");
+        title.textContent = company.companyName;
+        const status = document.createElement("span");
+        const statusInformation = statusLabels[company.status] || statusLabels.pending;
+        status.className = `status ${statusInformation.className}`.trim();
+        status.textContent = statusInformation.label;
+        cardHeader.append(title, status);
+
+        const details = document.createElement("dl");
+        details.className = "details";
+        addDetail(details, "CNPJ", formatCnpj(company.cnpj));
+        addDetail(details, "Interesse", interestLabels[company.interest]);
+        addDetail(details, "Contato principal", company.primaryContact);
+        addDetail(details, "E-mail principal", company.primaryEmail);
+        addDetail(details, "Tamanho do estoque", inventoryLabels[company.inventorySize]);
+        addDetail(details, "Recebido em", new Intl.DateTimeFormat("pt-BR", { dateStyle: "long", timeStyle: "short" }).format(new Date(company.receivedAt)));
+
+        const documents = document.createElement("section");
+        documents.className = "documents";
+        const documentsTitle = document.createElement("h3");
+        documentsTitle.textContent = "Documentos";
+        const documentList = document.createElement("ul");
+        documentList.className = "document-list";
+        company.documents.forEach((documentInformation) => {
+          const item = document.createElement("li");
+          item.className = "document";
+          const name = document.createElement("span");
+          name.className = "document-name";
+          name.textContent = documentInformation.name;
+          const link = document.createElement("a");
+          link.className = "document-button";
+          link.href = `/api/cadastros/${company.id}/documentos/${documentInformation.id}`;
+          link.target = "_blank";
+          link.rel = "noopener";
+          link.textContent = "Visualizar";
+          item.append(name, link);
+          documentList.append(item);
+        });
+        documents.append(documentsTitle, documentList);
+
+        const actions = document.createElement("div");
+        actions.className = "actions";
+        const approveButton = document.createElement("button");
+        approveButton.className = "action-button approve-button";
+        approveButton.type = "button";
+        approveButton.textContent = "Aprovar empresa";
+        const rejectButton = document.createElement("button");
+        rejectButton.className = "action-button reject-button";
+        rejectButton.type = "button";
+        rejectButton.textContent = "Recusar cadastro";
+        actions.append(approveButton, rejectButton);
+
+        const feedback = document.createElement("p");
+        feedback.className = "feedback";
+        feedback.role = "status";
+        feedback.tabIndex = -1;
+        feedback.hidden = true;
+
+        async function updateStatus(newStatus) {
+          approveButton.disabled = true;
+          rejectButton.disabled = true;
+          feedback.hidden = true;
+          try {
+            const response = await fetch(`/api/cadastros/${company.id}`, {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ status: newStatus }),
+            });
+            const result = await response.json();
+            if (!response.ok) throw new Error(result.message || "Não foi possível salvar a decisão.");
+            company.status = newStatus;
+            company.decidedAt = result.company.decidedAt;
+            const information = statusLabels[newStatus];
+            status.className = `status ${information.className}`;
+            status.textContent = information.label;
+            feedback.textContent = newStatus === "approved" ? "Empresa aprovada com sucesso." : "Cadastro recusado com sucesso.";
+            feedback.hidden = false;
+            feedback.focus();
+            updateSummary(window.companies);
+          } catch (error) {
+            feedback.textContent = error.message;
+            feedback.hidden = false;
+            feedback.focus();
+          } finally {
+            approveButton.disabled = false;
+            rejectButton.disabled = false;
+          }
+        }
+
+        approveButton.addEventListener("click", () => updateStatus("approved"));
+        rejectButton.addEventListener("click", () => updateStatus("rejected"));
+        article.append(cardHeader, details, documents, actions, feedback);
+        return article;
+      }
+
+      function updateSummary(companies) {
+        pendingCount.textContent = companies.filter((company) => company.status === "pending").length;
+        const today = new Date().toDateString();
+        approvedCount.textContent = companies.filter(
+          (company) => company.status === "approved" && company.decidedAt && new Date(company.decidedAt).toDateString() === today,
+        ).length;
+      }
+
+      async function loadCompanies() {
+        try {
+          const response = await fetch("/api/cadastros", { headers: { Accept: "application/json" } });
+          const result = await response.json();
+          if (!response.ok) throw new Error(result.message || "Não foi possível carregar as solicitações.");
+          window.companies = result.companies;
+          companyList.replaceChildren();
+          updateSummary(window.companies);
+          if (window.companies.length === 0) {
+            const empty = document.createElement("p");
+            empty.className = "empty-state";
+            empty.textContent = "Nenhuma solicitação de cadastro foi recebida.";
+            companyList.append(empty);
+            return;
+          }
+          window.companies.forEach((company) => companyList.append(createCompanyCard(company)));
+        } catch (error) {
+          const message = document.createElement("p");
+          message.className = "empty-state";
+          message.textContent = error.message;
+          companyList.replaceChildren(message);
+        }
+      }
+
+      loadCompanies();
 
     </script>
   </body>

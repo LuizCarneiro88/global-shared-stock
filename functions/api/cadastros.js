@@ -118,6 +118,27 @@ export async function onRequestPost(context) {
   }
 }
 
+export async function onRequestGet(context) {
+  if (!context.env.CADASTROS) return error("O armazenamento ainda não está configurado.", 503);
+
+  try {
+    const companies = [];
+    let cursor;
+    do {
+      const page = await context.env.CADASTROS.list({ prefix: "cadastro:", cursor });
+      const dataKeys = page.keys.filter((key) => key.name.endsWith(":dados"));
+      const records = await Promise.all(dataKeys.map((key) => context.env.CADASTROS.get(key.name, "json")));
+      companies.push(...records.filter(Boolean));
+      cursor = page.list_complete ? undefined : page.cursor;
+    } while (cursor);
+
+    companies.sort((first, second) => second.receivedAt.localeCompare(first.receivedAt));
+    return Response.json({ companies }, { headers: { "Cache-Control": "no-store" } });
+  } catch {
+    return error("Não foi possível carregar as solicitações.", 500);
+  }
+}
+
 export function onRequest() {
-  return new Response("Método não permitido.", { status: 405, headers: { Allow: "POST" } });
+  return new Response("Método não permitido.", { status: 405, headers: { Allow: "GET, POST" } });
 }
