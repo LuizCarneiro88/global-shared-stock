@@ -39,25 +39,38 @@ async function sign(payload, password) {
   return bytesToBase64Url(new Uint8Array(signature));
 }
 
+export function configuredCredentials(env) {
+  if (!env.ADMIN_CREDENTIALS) return null;
+  const separator = env.ADMIN_CREDENTIALS.indexOf(":");
+  if (separator <= 0 || separator === env.ADMIN_CREDENTIALS.length - 1) return null;
+  return {
+    email: env.ADMIN_CREDENTIALS.slice(0, separator).trim().toLowerCase(),
+    password: env.ADMIN_CREDENTIALS.slice(separator + 1),
+  };
+}
+
 export async function credentialsAreValid(email, password, env) {
-  if (!env.ADMIN_EMAIL || !env.ADMIN_PASSWORD || typeof email !== "string" || typeof password !== "string") return false;
+  const configured = configuredCredentials(env);
+  if (!configured || typeof email !== "string" || typeof password !== "string") return false;
   const receivedEmail = await digest(email.trim().toLowerCase());
-  const expectedEmail = await digest(env.ADMIN_EMAIL.trim().toLowerCase());
+  const expectedEmail = await digest(configured.email);
   const receivedPassword = await digest(password);
-  const expectedPassword = await digest(env.ADMIN_PASSWORD);
+  const expectedPassword = await digest(configured.password);
   return equalBytes(receivedEmail, expectedEmail) && equalBytes(receivedPassword, expectedPassword);
 }
 
 export async function createSession(email, env) {
+  const configured = configuredCredentials(env);
   const payload = textToBase64Url(JSON.stringify({
     email: email.trim().toLowerCase(),
     expiresAt: Date.now() + SESSION_DURATION_SECONDS * 1000,
   }));
-  return `${payload}.${await sign(payload, env.ADMIN_PASSWORD)}`;
+  return `${payload}.${await sign(payload, configured.password)}`;
 }
 
 export async function sessionIsValid(request, env) {
-  if (!env.ADMIN_EMAIL || !env.ADMIN_PASSWORD) return false;
+  const configured = configuredCredentials(env);
+  if (!configured) return false;
   const cookie = request.headers.get("Cookie") || "";
   const match = cookie.match(/(?:^|;\s*)admin_session=([^;]+)/);
   if (!match) return false;
@@ -65,11 +78,11 @@ export async function sessionIsValid(request, env) {
   try {
     const [payload, receivedSignature] = match[1].split(".");
     if (!payload || !receivedSignature) return false;
-    const expectedSignature = await sign(payload, env.ADMIN_PASSWORD);
+    const expectedSignature = await sign(payload, configured.password);
     const signaturesMatch = equalBytes(encoder.encode(receivedSignature), encoder.encode(expectedSignature));
     if (!signaturesMatch) return false;
     const session = JSON.parse(base64UrlToText(payload));
-    return session.email === env.ADMIN_EMAIL.trim().toLowerCase() && session.expiresAt > Date.now();
+    return session.email === configured.email && session.expiresAt > Date.now();
   } catch {
     return false;
   }

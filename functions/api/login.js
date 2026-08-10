@@ -1,7 +1,7 @@
-import { createSession, credentialsAreValid, sessionCookie } from "../_auth.js";
+import { configuredCredentials, createSession, credentialsAreValid, sessionCookie } from "../_auth.js";
 
 export async function onRequestPost(context) {
-  if (!context.env.ADMIN_EMAIL || !context.env.ADMIN_PASSWORD) {
+  if (!configuredCredentials(context.env)) {
     return Response.json({ message: "O acesso ainda não foi configurado." }, { status: 503 });
   }
 
