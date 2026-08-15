@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Acesso da empresa à Global Shared Stock." />
+    <title>Acesso da empresa | Global Shared Stock</title>
+    <style>
+      :root { color-scheme: dark; --background: #090b0d; --surface: #111418; --surface-light: #171b20; --text: #f4f5f6; --muted: #a9afb7; --silver: #c5c9ce; --line: #343940; }
+      * { box-sizing: border-box; }
+      body { min-width: 320px; min-height: 100vh; margin: 0; background: var(--background) url("assets/global-shared-stock-background.png") center / cover fixed; color: var(--text); font-family: Inter, ui-sans-serif, system-ui, sans-serif; }
+      main { display: grid; width: min(100% - 24px, 460px); min-height: 100vh; margin: 0 auto; padding: 28px 0; place-items: center; }
+      .content { width: 100%; }
+      header { margin-bottom: 28px; text-align: center; }
+      .brand { margin: 0 0 26px; color: var(--silver); font-weight: 800; letter-spacing: 0.15em; text-transform: uppercase; }
+      h1 { margin: 0; font-size: clamp(2.2rem, 11vw, 3.4rem); line-height: 1; }
+      .introduction { margin: 16px 0 0; color: var(--muted); line-height: 1.55; }
+      form { display: grid; gap: 18px; padding: 24px 16px; border: 1px solid var(--line); border-radius: 18px; background: rgba(17, 20, 24, 0.96); }
+      label { display: block; margin-bottom: 8px; font-weight: 700; }
+      input { width: 100%; min-height: 48px; padding: 12px 14px; border: 1px solid #464c54; border-radius: 10px; background: var(--surface-light); color: var(--text); font: inherit; }
+      button { min-height: 52px; border: 1px solid #555b63; border-radius: 12px; background: var(--silver); color: #121519; font: inherit; font-weight: 750; cursor: pointer; }
+      button:disabled { cursor: wait; opacity: 0.7; }
+      .status { margin: 0; padding: 12px; border: 1px solid var(--line); border-radius: 10px; color: var(--muted); line-height: 1.45; text-align: center; }
+      .status[hidden] { display: none; }
+      .back-link { display: block; width: fit-content; margin: 22px auto 0; color: var(--silver); text-underline-offset: 4px; }
+      @media (min-width: 500px) { main { padding: 48px 0; } form { padding: 28px; } }
+    </style>
+  </head>
+  <body>
+    <main>
+      <div class="content">
+        <header>
+          <p class="brand">Global Shared Stock</p>
+          <h1>Acesso da empresa</h1>
+          <p class="introduction">Entre para cadastrar e acompanhar os materiais da sua empresa.</p>
+        </header>
+        <form id="login-form">
+          <div><label for="email">E-mail</label><input id="email" name="email" type="email" autocomplete="username" required /></div>
+          <div><label for="password">Senha</label><input id="password" name="password" type="password" autocomplete="current-password" required /></div>
+          <button id="submit-button" type="submit">Entrar</button>
+          <p id="status" class="status" role="status" tabindex="-1" hidden></p>
+        </form>
+        <a class="back-link" href="index.html">Voltar ao início</a>
+      </div>
+    </main>
+    <script>
+      const form = document.querySelector("#login-form");
+      const status = document.querySelector("#status");
+      const button = document.querySelector("#submit-button");
+      form.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        if (!form.reportValidity()) return;
+        button.disabled = true;
+        button.textContent = "Entrando...";
+        status.hidden = true;
+        try {
+          const response = await fetch("/api/login", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ area: "company", email: form.email.value, password: form.password.value }),
+          });
+          const result = await response.json();
+          if (!response.ok) throw new Error(result.message || "E-mail ou senha incorretos.");
+          const next = new URLSearchParams(location.search).get("next");
+          const companyNext = next?.startsWith("/empresa") && !next.startsWith("//");
+          location.href = companyNext ? next : result.destination;
+        } catch (error) {
+          status.textContent = error.message;
+          status.hidden = false;
+          status.focus();
+          form.password.value = "";
+        } finally {
+          button.disabled = false;
+          button.textContent = "Entrar";
+        }
+      });
+    </script>
+  </body>
+</html>

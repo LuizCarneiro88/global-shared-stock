@@ -259,6 +259,7 @@
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
+              area: "admin",
               email: form.email.value,
               password: form.password.value,
             }),
@@ -271,8 +272,8 @@
 
           const next = new URLSearchParams(window.location.search).get("next");
           const safeNext = next?.startsWith("/") && !next.startsWith("//");
-          const roleAllowsNext = result.role === "admin" ? !next?.startsWith("/empresa") : next?.startsWith("/empresa");
-          window.location.href = safeNext && roleAllowsNext ? next : result.destination;
+          const adminNext = safeNext && !next.startsWith("/empresa");
+          window.location.href = adminNext ? next : result.destination;
         } catch (error) {
           status.textContent = error.message;
           status.hidden = false;

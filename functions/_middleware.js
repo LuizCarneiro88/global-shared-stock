@@ -15,7 +15,7 @@ export async function onRequest(context) {
   const allowed = companyArea ? session?.role === "company" : session?.role === "admin";
   if (allowed) return context.next();
 
-  const loginUrl = new URL("/login", url.origin);
+  const loginUrl = new URL(companyArea ? "/login-empresa" : "/login", url.origin);
   loginUrl.searchParams.set("next", `${url.pathname}${url.search}`);
   return Response.redirect(loginUrl, 302);
 }

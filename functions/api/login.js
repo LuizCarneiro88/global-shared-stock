@@ -12,7 +12,7 @@ export async function onRequestPost(context) {
     return Response.json({ message: "Não foi possível ler os dados informados." }, { status: 400 });
   }
 
-  if (await credentialsAreValid(credentials.email, credentials.password, context.env)) {
+  if (credentials.area === "admin" && await credentialsAreValid(credentials.email, credentials.password, context.env)) {
     const session = await createSession({ email: credentials.email, role: "admin" }, context.env);
     return Response.json(
       { success: true, destination: "/admin", role: "admin" },
@@ -20,7 +20,9 @@ export async function onRequestPost(context) {
     );
   }
 
-  const account = await sellerCredentialsAreValid(credentials.email, credentials.password, context.env);
+  const account = credentials.area === "company"
+    ? await sellerCredentialsAreValid(credentials.email, credentials.password, context.env)
+    : null;
   if (!account) return Response.json({ message: "E-mail ou senha incorretos." }, { status: 401 });
 
   const session = await createSession({ email: account.email, role: "company", companyId: account.companyId }, context.env);
