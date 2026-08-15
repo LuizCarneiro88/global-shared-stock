@@ -189,6 +189,20 @@
         letter-spacing: 0.04em;
       }
 
+      .admin-link {
+        display: block;
+        width: fit-content;
+        margin: 14px auto 0;
+        color: #767d86;
+        font-size: 0.72rem;
+        text-underline-offset: 3px;
+      }
+
+      .admin-link:focus-visible {
+        outline: 3px solid rgba(197, 201, 206, 0.32);
+        outline-offset: 3px;
+      }
+
       @media (min-width: 700px) {
         main {
           padding: 56px 0;
@@ -225,6 +239,14 @@
           margin-top: 22px;
         }
 
+        .actions {
+          display: grid;
+        }
+
+        .action {
+          width: 100%;
+        }
+
         .steps {
           margin-top: 36px;
         }
@@ -237,8 +259,8 @@
         <p class="brand">Global Shared Stock</p>
 
         <div class="actions">
-          <a class="action action-primary" href="cadastro.html">Cadastrar</a>
-          <a class="action action-secondary" href="login.html">Entrar</a>
+          <a class="action action-primary" href="cadastro.html">Cadastrar empresa</a>
+          <a class="action action-secondary" href="login-empresa.html">Acesso da empresa</a>
         </div>
 
         <h1>
@@ -270,7 +292,10 @@
           </li>
         </ol>
 
-        <footer>Materiais industriais conectados com agilidade e segurança.</footer>
+        <footer>
+          Materiais industriais conectados com agilidade e segurança.
+          <a class="admin-link" href="login.html">Administração</a>
+        </footer>
       </div>
     </main>
   </body>
