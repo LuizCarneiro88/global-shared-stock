@@ -54,8 +54,8 @@
         <h2 id="material-title">Adicionar material</h2>
         <form id="material-form">
           <div class="fields">
-            <div><label for="code">Código do material *</label><input id="code" required /></div>
-            <div><label for="manufacturer">Fabricante *</label><input id="manufacturer" required /></div>
+            <div><label for="part-number">Part number <span class="help">(opcional)</span></label><input id="part-number" /></div>
+            <div><label for="manufacturer">Fabricante <span class="help">(opcional)</span></label><input id="manufacturer" /></div>
             <div class="field-wide"><label for="description">Descrição *</label><textarea id="description" required></textarea></div>
             <div><label for="category">Categoria *</label><input id="category" required /></div>
             <div><label for="condition">Condição *</label><select id="condition" required><option value="">Selecione</option><option value="new">Novo</option><option value="used">Usado</option><option value="refurbished">Recondicionado</option><option value="scrap">Sucata</option></select></div>
@@ -152,7 +152,8 @@
         const header = document.createElement("div");
         header.className = "material-header";
         const title = document.createElement("h3");
-        title.textContent = `${material.code} — ${material.manufacturer}`;
+        const identification = [material.partNumber || material.code, material.manufacturer].filter(Boolean);
+        title.textContent = identification.length ? identification.join(" — ") : material.description.slice(0, 80);
         const status = document.createElement("span");
         status.className = "status-pill";
         status.textContent = removable ? "Ainda não enviado" : statusLabels[material.status];
@@ -223,7 +224,7 @@
         }
         price.setCustomValidity("");
         drafts.push({
-          id: crypto.randomUUID(), code: document.querySelector("#code").value.trim(), manufacturer: document.querySelector("#manufacturer").value.trim(),
+          id: crypto.randomUUID(), partNumber: document.querySelector("#part-number").value.trim(), manufacturer: document.querySelector("#manufacturer").value.trim(),
           description: document.querySelector("#description").value.trim(), category: document.querySelector("#category").value.trim(),
           condition: document.querySelector("#condition").value, quantity: Number(quantity.value), unit: unit.value, otherUnit: otherUnit.value.trim(),
           hasCertificate: document.querySelector("#certificate").value === "yes", unitPriceCents: values.unitPrice,

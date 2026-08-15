@@ -16,7 +16,7 @@ function normalizedMaterial(input) {
   const quantity = Number(input.quantity);
   const unitPriceCents = Number(input.unitPriceCents);
   if (!UUID_PATTERN.test(input.id || "")) throw new Error("Identificação de material inválida.");
-  if (!cleanText(input.code, 100) || !cleanText(input.manufacturer, 150) || !cleanText(input.description, 1000) || !cleanText(input.category, 100)) {
+  if (!cleanText(input.description, 1000) || !cleanText(input.category, 100)) {
     throw new Error("Preencha todos os campos obrigatórios do material.");
   }
   if (!CONDITIONS.has(input.condition) || !UNITS.has(input.unit)) throw new Error("Condição ou unidade de medida inválida.");
@@ -33,7 +33,7 @@ function normalizedMaterial(input) {
   const totalNetCents = totalPriceCents - totalCommissionCents;
   return {
     id: input.id,
-    code: cleanText(input.code, 100),
+    partNumber: cleanText(input.partNumber ?? input.code, 100),
     manufacturer: cleanText(input.manufacturer, 150),
     description: cleanText(input.description, 1000),
     category: cleanText(input.category, 100),
