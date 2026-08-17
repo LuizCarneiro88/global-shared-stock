@@ -94,6 +94,7 @@
           <button id="submit-materials" type="button" disabled>Enviar materiais para análise</button>
           <button id="clear-draft" class="secondary" type="button" disabled>Limpar lista</button>
         </div>
+        <p id="draft-status" class="message success" role="status" hidden>Rascunho salvo neste dispositivo.</p>
         <p id="submission-message" class="message" role="status" tabindex="-1" hidden></p>
       </section>
 
@@ -132,11 +133,13 @@
       const submitMaterials = document.querySelector("#submit-materials");
       const clearDraft = document.querySelector("#clear-draft");
       const submissionMessage = document.querySelector("#submission-message");
+      const draftStatus = document.querySelector("#draft-status");
       const addMaterialButton = document.querySelector("#add-material");
       const cancelEditButton = document.querySelector("#cancel-edit");
       const drafts = [];
       let requestId = crypto.randomUUID();
       let editingId = null;
+      let draftStorageKey = "";
 
       const conditionLabels = { new: "Novo", used: "Usado", refurbished: "Recondicionado", scrap: "Sucata" };
       const unitLabels = { unit: "Unidade", lot: "Lote", kg: "Quilograma", meter: "Metro", square_meter: "Metro quadrado (m²)", cubic_meter: "Metro cúbico (m³)", liter: "Litro" };
@@ -314,11 +317,38 @@
         return item;
       }
 
+      function saveDrafts() {
+        if (!draftStorageKey) return;
+        try {
+          if (drafts.length) localStorage.setItem(draftStorageKey, JSON.stringify(drafts));
+          else localStorage.removeItem(draftStorageKey);
+          draftStatus.textContent = "Rascunho salvo neste dispositivo.";
+          draftStatus.className = "message success";
+          draftStatus.hidden = drafts.length === 0;
+        } catch {
+          draftStatus.textContent = "Não foi possível salvar o rascunho neste navegador.";
+          draftStatus.className = "message error";
+          draftStatus.hidden = false;
+        }
+      }
+
+      function restoreDrafts() {
+        if (!draftStorageKey) return;
+        try {
+          const saved = JSON.parse(localStorage.getItem(draftStorageKey) || "[]");
+          if (!Array.isArray(saved)) return;
+          drafts.splice(0, drafts.length, ...saved.filter((material) => material && typeof material.id === "string").slice(0, 100));
+        } catch {
+          try { localStorage.removeItem(draftStorageKey); } catch {}
+        }
+      }
+
       function renderDrafts() {
         draftList.replaceChildren(...drafts.map((material) => createCard(material, true)));
         emptyDraft.hidden = drafts.length > 0;
         submitMaterials.disabled = drafts.length === 0;
         clearDraft.disabled = drafts.length === 0;
+        saveDrafts();
       }
 
       async function loadMaterials() {
@@ -327,6 +357,9 @@
           const result = await response.json();
           if (!response.ok) throw new Error(result.message || "Não foi possível carregar os materiais.");
           document.querySelector("#company-name").textContent = result.companyName;
+          draftStorageKey = `global-shared-stock:rascunho:${result.companyId}`;
+          restoreDrafts();
+          renderDrafts();
           sentList.replaceChildren(...result.materials.map((material) => createCard(material)));
           emptySent.hidden = result.materials.length > 0;
         } catch (error) {

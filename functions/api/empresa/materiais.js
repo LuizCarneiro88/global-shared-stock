@@ -98,7 +98,7 @@ export async function onRequestGet(context) {
     cursor = page.list_complete ? undefined : page.cursor;
   } while (cursor);
   materials.sort((first, second) => second.submittedAt.localeCompare(first.submittedAt));
-  return Response.json({ companyName: company.companyName, materials }, { headers: { "Cache-Control": "no-store" } });
+  return Response.json({ companyId: session.companyId, companyName: company.companyName, materials }, { headers: { "Cache-Control": "no-store" } });
 }
 
 export async function onRequestPost(context) {
