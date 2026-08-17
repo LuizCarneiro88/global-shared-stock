@@ -93,6 +93,37 @@
         line-height: 1.6;
       }
 
+      .admin-tabs {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px;
+        margin-bottom: 22px;
+        padding: 6px;
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        background: rgba(17, 20, 24, 0.94);
+      }
+
+      .tab-button {
+        min-height: 48px;
+        padding: 9px;
+        border: 1px solid transparent;
+        border-radius: 10px;
+        background: transparent;
+        color: var(--muted);
+        font: inherit;
+        font-weight: 750;
+        cursor: pointer;
+      }
+
+      .tab-button[aria-selected="true"] {
+        border-color: #555b63;
+        background: var(--silver);
+        color: #121519;
+      }
+
+      .tab-panel[hidden] { display: none; }
+
       .summary {
         display: grid;
         grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -391,25 +422,31 @@
     <main>
       <header>
         <p class="brand">Global Shared Stock</p>
-        <h1>Cadastros de empresas</h1>
+        <h1>Painel administrativo</h1>
         <p class="introduction">
-          Analise os dados enviados antes de liberar o acesso à plataforma.
+          Analise empresas e materiais antes de publicá-los na plataforma.
         </p>
       </header>
 
-      <section class="summary" aria-label="Resumo dos cadastros">
-        <div class="summary-item">
-          <strong id="pending-count" class="summary-number">0</strong>
-          <span class="summary-label">Aguardando análise</span>
-        </div>
-        <div class="summary-item">
-          <strong id="approved-count" class="summary-number">0</strong>
-          <span class="summary-label">Aprovados hoje</span>
-        </div>
+      <nav class="admin-tabs" aria-label="Áreas de validação" role="tablist">
+        <button id="companies-tab" class="tab-button" type="button" role="tab" aria-selected="true" aria-controls="companies-panel">Validação de empresas</button>
+        <button id="materials-tab" class="tab-button" type="button" role="tab" aria-selected="false" aria-controls="materials-panel">Validação de materiais</button>
+      </nav>
+
+      <section id="companies-panel" class="tab-panel" role="tabpanel" aria-labelledby="companies-tab">
+        <section class="summary" aria-label="Resumo dos cadastros">
+          <div class="summary-item"><strong id="pending-count" class="summary-number">0</strong><span class="summary-label">Aguardando análise</span></div>
+          <div class="summary-item"><strong id="approved-count" class="summary-number">0</strong><span class="summary-label">Aprovados hoje</span></div>
+        </section>
+        <section id="company-list" class="company-list" aria-live="polite"><p class="empty-state">Carregando solicitações...</p></section>
       </section>
 
-      <section id="company-list" class="company-list" aria-live="polite">
-        <p class="empty-state">Carregando solicitações...</p>
+      <section id="materials-panel" class="tab-panel" role="tabpanel" aria-labelledby="materials-tab" hidden>
+        <section class="summary" aria-label="Resumo dos materiais">
+          <div class="summary-item"><strong id="pending-material-count" class="summary-number">0</strong><span class="summary-label">Aguardando análise</span></div>
+          <div class="summary-item"><strong id="total-material-count" class="summary-number">0</strong><span class="summary-label">Materiais enviados</span></div>
+        </section>
+        <section id="material-list" class="company-list" aria-live="polite"><p class="empty-state">Carregando materiais...</p></section>
       </section>
 
       <a class="back-link" href="index.html">Voltar ao início</a>
@@ -422,6 +459,9 @@
       const companyList = document.querySelector("#company-list");
       const pendingCount = document.querySelector("#pending-count");
       const approvedCount = document.querySelector("#approved-count");
+      const materialList = document.querySelector("#material-list");
+      const pendingMaterialCount = document.querySelector("#pending-material-count");
+      const totalMaterialCount = document.querySelector("#total-material-count");
 
       const interestLabels = { buy: "Compra", sell: "Venda", both: "Compra e venda" };
       const inventoryLabels = {
@@ -435,6 +475,22 @@
         approved: { label: "Aprovada", className: "approved" },
         rejected: { label: "Recusada", className: "rejected" },
       };
+      const materialStatusLabels = {
+        pending: { label: "Aguardando análise", className: "" },
+        approved: { label: "Aprovado", className: "approved" },
+        rejected: { label: "Rejeitado", className: "rejected" },
+      };
+      const conditionLabels = { new: "Novo", used: "Usado", refurbished: "Recondicionado", scrap: "Sucata" };
+      const unitLabels = { unit: "Unidade", lot: "Lote", kg: "Quilograma", meter: "Metro", square_meter: "Metro quadrado (m²)", cubic_meter: "Metro cúbico (m³)", liter: "Litro" };
+      const money = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "USD" });
+
+      function selectTab(selectedButton, selectedPanel) {
+        document.querySelectorAll(".tab-button").forEach((button) => button.setAttribute("aria-selected", String(button === selectedButton)));
+        document.querySelectorAll(".tab-panel").forEach((panel) => { panel.hidden = panel !== selectedPanel; });
+      }
+
+      document.querySelector("#companies-tab").addEventListener("click", (event) => selectTab(event.currentTarget, document.querySelector("#companies-panel")));
+      document.querySelector("#materials-tab").addEventListener("click", (event) => selectTab(event.currentTarget, document.querySelector("#materials-panel")));
 
       function formatCnpj(value) {
         return value.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, "$1.$2.$3/$4-$5");
@@ -626,6 +682,41 @@
         return article;
       }
 
+      function createMaterialCard(material) {
+        const article = document.createElement("article");
+        article.className = "company-card";
+        const cardHeader = document.createElement("div");
+        cardHeader.className = "card-header";
+        const title = document.createElement("h2");
+        title.textContent = material.description;
+        const status = document.createElement("span");
+        const statusInformation = materialStatusLabels[material.status] || materialStatusLabels.pending;
+        status.className = `status ${statusInformation.className}`.trim();
+        status.textContent = statusInformation.label;
+        cardHeader.append(title, status);
+
+        const details = document.createElement("dl");
+        details.className = "details";
+        const category = material.category === "Outro" ? material.otherCategory : material.category;
+        const subcategory = material.subcategory === "Outro" ? material.otherSubcategory : material.subcategory;
+        const type = material.materialType === "Outro" ? material.otherMaterialType : material.materialType;
+        const unit = material.unit === "other" ? material.otherUnit : unitLabels[material.unit];
+        addDetail(details, "Empresa", material.companyName);
+        addDetail(details, "E-mail", material.companyEmail);
+        addDetail(details, "Part number", material.partNumber);
+        addDetail(details, "Fabricante", material.manufacturer);
+        addDetail(details, "Classificação", [category, subcategory, type].filter(Boolean).join(" › "));
+        addDetail(details, "Condição", conditionLabels[material.condition]);
+        addDetail(details, "Quantidade", `${material.quantity} ${unit || ""}`.trim());
+        addDetail(details, "Preço final unitário", money.format(material.unitPriceCents / 100));
+        addDetail(details, "Comissão total", money.format(material.totalCommissionCents / 100));
+        addDetail(details, "Líquido do vendedor", money.format(material.totalNetCents / 100));
+        addDetail(details, "Certificado", material.hasCertificate ? "Sim" : "Não");
+        addDetail(details, "Enviado em", new Intl.DateTimeFormat("pt-BR", { dateStyle: "long", timeStyle: "short" }).format(new Date(material.submittedAt)));
+        article.append(cardHeader, details);
+        return article;
+      }
+
       function updateSummary(companies) {
         pendingCount.textContent = companies.filter((company) => company.status === "pending").length;
         const today = new Date().toDateString();
@@ -658,7 +749,32 @@
         }
       }
 
+      async function loadMaterials() {
+        try {
+          const response = await fetch("/api/materiais", { headers: { Accept: "application/json" } });
+          const result = await response.json();
+          if (!response.ok) throw new Error(result.message || "Não foi possível carregar os materiais.");
+          pendingMaterialCount.textContent = result.materials.filter((material) => material.status === "pending").length;
+          totalMaterialCount.textContent = result.materials.length;
+          materialList.replaceChildren();
+          if (!result.materials.length) {
+            const empty = document.createElement("p");
+            empty.className = "empty-state";
+            empty.textContent = "Nenhum material foi enviado para análise.";
+            materialList.append(empty);
+            return;
+          }
+          result.materials.forEach((material) => materialList.append(createMaterialCard(material)));
+        } catch (error) {
+          const message = document.createElement("p");
+          message.className = "empty-state";
+          message.textContent = error.message;
+          materialList.replaceChildren(message);
+        }
+      }
+
       loadCompanies();
+      loadMaterials();
 
     </script>
   </body>
