@@ -5,6 +5,9 @@ export async function onRequest(context) {
   const publicRequest =
     url.pathname === "/api/login" ||
     url.pathname === "/api/acesso/ativar" ||
+    url.pathname === "/api/acesso/redefinir" ||
+    url.pathname === "/redefinir-senha" ||
+    url.pathname === "/redefinir-senha.html" ||
     (url.pathname === "/api/cadastros" && context.request.method === "POST");
 
   if (publicRequest) return context.next();

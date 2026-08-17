@@ -524,6 +524,10 @@
         generateAccessButton.className = "action-button reject-button";
         generateAccessButton.type = "button";
         generateAccessButton.textContent = "Gerar link de acesso";
+        const generateResetButton = document.createElement("button");
+        generateResetButton.className = "action-button reject-button";
+        generateResetButton.type = "button";
+        generateResetButton.textContent = "Gerar link para redefinir senha";
         const accessLink = document.createElement("input");
         accessLink.className = "access-link";
         accessLink.type = "text";
@@ -535,7 +539,7 @@
         copyAccessButton.type = "button";
         copyAccessButton.textContent = "Copiar link";
         copyAccessButton.hidden = true;
-        accessPanel.append(accessTitle, generateAccessButton, accessLink, copyAccessButton);
+        accessPanel.append(accessTitle, generateAccessButton, generateResetButton, accessLink, copyAccessButton);
 
         async function updateStatus(newStatus) {
           approveButton.disabled = true;
@@ -590,6 +594,28 @@
             feedback.focus();
           } finally {
             generateAccessButton.disabled = false;
+          }
+        });
+        generateResetButton.addEventListener("click", async () => {
+          generateResetButton.disabled = true;
+          feedback.hidden = true;
+          try {
+            const response = await fetch(`/api/cadastros/${company.id}/redefinir-senha`, { method: "POST" });
+            const result = await response.json();
+            if (!response.ok) throw new Error(result.message || "Não foi possível gerar o link.");
+            accessLink.value = result.link;
+            accessLink.hidden = false;
+            copyAccessButton.hidden = false;
+            copyAccessButton.textContent = "Copiar link";
+            feedback.textContent = "Link de redefinição criado. Ele vence em 30 minutos e pode ser usado uma vez.";
+            feedback.hidden = false;
+            feedback.focus();
+          } catch (error) {
+            feedback.textContent = error.message;
+            feedback.hidden = false;
+            feedback.focus();
+          } finally {
+            generateResetButton.disabled = false;
           }
         });
         copyAccessButton.addEventListener("click", async () => {

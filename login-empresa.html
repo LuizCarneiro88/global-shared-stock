@@ -23,6 +23,7 @@
       .status { margin: 0; padding: 12px; border: 1px solid var(--line); border-radius: 10px; color: var(--muted); line-height: 1.45; text-align: center; }
       .status[hidden] { display: none; }
       .back-link { display: block; width: fit-content; margin: 22px auto 0; color: var(--silver); text-underline-offset: 4px; }
+      .forgot-link { width: fit-content; margin: -6px auto 0; color: var(--silver); font: inherit; background: none; border: 0; min-height: auto; padding: 4px; text-decoration: underline; text-underline-offset: 4px; }
       @media (min-width: 500px) { main { padding: 48px 0; } form { padding: 28px; } }
     </style>
   </head>
@@ -37,6 +38,7 @@
         <form id="login-form">
           <div><label for="email">E-mail</label><input id="email" name="email" type="email" autocomplete="username" required /></div>
           <div><label for="password">Senha</label><input id="password" name="password" type="password" autocomplete="current-password" required /></div>
+          <button id="forgot-password" class="forgot-link" type="button">Esqueci minha senha</button>
           <button id="submit-button" type="submit">Entrar</button>
           <p id="status" class="status" role="status" tabindex="-1" hidden></p>
         </form>
@@ -47,6 +49,11 @@
       const form = document.querySelector("#login-form");
       const status = document.querySelector("#status");
       const button = document.querySelector("#submit-button");
+      document.querySelector("#forgot-password").addEventListener("click", () => {
+        status.textContent = "Entre em contato com a administração da Global Shared Stock e informe o e-mail cadastrado. A administração enviará um link temporário para você criar uma nova senha.";
+        status.hidden = false;
+        status.focus();
+      });
       form.addEventListener("submit", async (event) => {
         event.preventDefault();
         if (!form.reportValidity()) return;
