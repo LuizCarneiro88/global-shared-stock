@@ -1,8 +1,10 @@
 import { getSession } from "../../_auth.js";
+import { categories, subcategories, materialTypes, OTHER_CLASSIFICATION } from "../../../classificacoes.js";
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const CONDITIONS = new Set(["new", "used", "refurbished", "scrap"]);
-const UNITS = new Set(["unit", "lot", "kg", "meter", "liter", "other"]);
+const UNITS = new Set(["unit", "lot", "kg", "meter", "square_meter", "cubic_meter", "liter", "other"]);
+const CATEGORIES = new Set(categories);
 
 function error(message, status = 400) {
   return Response.json({ message }, { status, headers: { "Cache-Control": "no-store" } });
@@ -19,6 +21,28 @@ function normalizedMaterial(input) {
   if (!cleanText(input.description, 1000) || !cleanText(input.category, 100)) {
     throw new Error("Preencha todos os campos obrigatórios do material.");
   }
+  const category = cleanText(input.category, 100);
+  const otherCategory = cleanText(input.otherCategory, 100);
+  if (category !== OTHER_CLASSIFICATION && !CATEGORIES.has(category)) throw new Error("Selecione uma categoria válida.");
+  if (category === OTHER_CLASSIFICATION && !otherCategory) throw new Error("Informe a outra categoria.");
+
+  const allowedSubcategories = subcategories[category] || [];
+  const subcategory = cleanText(input.subcategory, 150);
+  const otherSubcategory = cleanText(input.otherSubcategory, 150);
+  if (allowedSubcategories.length && subcategory !== OTHER_CLASSIFICATION && !allowedSubcategories.includes(subcategory)) {
+    throw new Error("Selecione uma subcategoria válida.");
+  }
+  if (allowedSubcategories.length && subcategory === OTHER_CLASSIFICATION && !otherSubcategory) throw new Error("Informe a outra subcategoria.");
+  if (allowedSubcategories.length && !subcategory) throw new Error("Selecione uma subcategoria.");
+
+  const allowedMaterialTypes = materialTypes[subcategory] || [];
+  const materialType = cleanText(input.materialType, 150);
+  const otherMaterialType = cleanText(input.otherMaterialType, 150);
+  if (allowedMaterialTypes.length && materialType !== OTHER_CLASSIFICATION && !allowedMaterialTypes.includes(materialType)) {
+    throw new Error("Selecione um tipo de material válido.");
+  }
+  if (allowedMaterialTypes.length && materialType === OTHER_CLASSIFICATION && !otherMaterialType) throw new Error("Informe o outro tipo de material.");
+  if (allowedMaterialTypes.length && !materialType) throw new Error("Selecione um tipo de material.");
   if (!CONDITIONS.has(input.condition) || !UNITS.has(input.unit)) throw new Error("Condição ou unidade de medida inválida.");
   if (input.unit === "other" && !cleanText(input.otherUnit, 30)) throw new Error("Informe a outra unidade de medida.");
   if (!Number.isFinite(quantity) || quantity <= 0 || Math.abs(Math.round(quantity * 1000) - quantity * 1000) > 0.000001) {
@@ -36,7 +60,12 @@ function normalizedMaterial(input) {
     partNumber: cleanText(input.partNumber ?? input.code, 100),
     manufacturer: cleanText(input.manufacturer, 150),
     description: cleanText(input.description, 1000),
-    category: cleanText(input.category, 100),
+    category,
+    otherCategory: category === OTHER_CLASSIFICATION ? otherCategory : "",
+    subcategory: allowedSubcategories.length ? subcategory : "",
+    otherSubcategory: subcategory === OTHER_CLASSIFICATION ? otherSubcategory : "",
+    materialType: allowedMaterialTypes.length ? materialType : "",
+    otherMaterialType: materialType === OTHER_CLASSIFICATION ? otherMaterialType : "",
     condition: input.condition,
     quantity,
     unit: input.unit,

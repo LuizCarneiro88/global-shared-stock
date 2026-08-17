@@ -34,6 +34,7 @@
       .material-header { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 10px; }
       .material-card p { margin: 8px 0 0; color: var(--muted); line-height: 1.45; }
       .material-values { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 14px; font-size: 0.82rem; }
+      .card-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
       .status-pill { padding: 6px 9px; border: 1px solid #5a5f67; border-radius: 999px; color: var(--silver); font-size: 0.72rem; font-weight: 750; }
       .list-actions { display: grid; gap: 10px; margin-top: 16px; }
       .message { margin: 16px 0 0; padding: 12px; border: 1px solid var(--line); border-radius: 10px; color: var(--muted); line-height: 1.45; text-align: center; }
@@ -57,10 +58,15 @@
             <div><label for="part-number">Part number <span class="help">(opcional)</span></label><input id="part-number" /></div>
             <div><label for="manufacturer">Fabricante <span class="help">(opcional)</span></label><input id="manufacturer" /></div>
             <div class="field-wide"><label for="description">Descrição *</label><textarea id="description" required></textarea></div>
-            <div><label for="category">Categoria *</label><input id="category" required /></div>
+            <div><label for="category">Categoria *</label><select id="category" required><option value="">Selecione</option></select></div>
+            <div id="other-category-field" hidden><label for="other-category">Outra categoria *</label><input id="other-category" maxlength="100" /></div>
+            <div><label for="subcategory">Subcategoria <span class="help">(quando aplicável)</span></label><select id="subcategory" disabled><option value="">Escolha primeiro a categoria</option></select></div>
+            <div id="other-subcategory-field" hidden><label for="other-subcategory">Outra subcategoria *</label><input id="other-subcategory" maxlength="100" /></div>
+            <div id="material-type-field" hidden><label for="material-type">Tipo de sensor *</label><select id="material-type"><option value="">Selecione</option></select></div>
+            <div id="other-material-type-field" hidden><label for="other-material-type">Outro tipo de sensor *</label><input id="other-material-type" maxlength="100" /></div>
             <div><label for="condition">Condição *</label><select id="condition" required><option value="">Selecione</option><option value="new">Novo</option><option value="used">Usado</option><option value="refurbished">Recondicionado</option><option value="scrap">Sucata</option></select></div>
             <div><label for="quantity">Quantidade disponível *</label><input id="quantity" type="number" inputmode="decimal" min="0.001" step="0.001" required /></div>
-            <div><label for="unit">Unidade de medida *</label><select id="unit" required><option value="">Selecione</option><option value="unit">Unidade</option><option value="lot">Lote</option><option value="kg">Quilograma</option><option value="meter">Metro</option><option value="liter">Litro</option><option value="other">Outro</option></select></div>
+            <div><label for="unit">Unidade de medida *</label><select id="unit" required><option value="">Selecione</option><option value="unit">Unidade</option><option value="lot">Lote</option><option value="kg">Quilograma</option><option value="meter">Metro</option><option value="square_meter">Metro quadrado (m²)</option><option value="cubic_meter">Metro cúbico (m³)</option><option value="liter">Litro</option><option value="other">Outro</option></select></div>
             <div id="other-unit-field" hidden><label for="other-unit">Outra unidade *</label><input id="other-unit" maxlength="30" /></div>
             <div><label for="certificate">Possui certificado? *</label><select id="certificate" required><option value="">Selecione</option><option value="yes">Sim</option><option value="no">Não</option></select></div>
             <div><label for="price">Preço final unitário (US$) *</label><input id="price" type="text" inputmode="decimal" placeholder="0,00" required /><p class="help">Informe o preço final já incluindo a comissão de 10%.</p></div>
@@ -73,7 +79,10 @@
             <div class="calculation"><span>Comissão total</span><strong id="total-commission">US$ 0,00</strong></div>
             <div class="calculation"><span>Líquido total</span><strong id="total-net">US$ 0,00</strong></div>
           </div>
-          <button type="submit">Adicionar à lista</button>
+          <div class="list-actions">
+            <button id="add-material" type="button">Adicionar à lista</button>
+            <button id="cancel-edit" class="secondary" type="button" hidden>Cancelar edição</button>
+          </div>
         </form>
       </section>
 
@@ -97,8 +106,20 @@
       <form class="logout" action="/api/logout" method="post"><button class="secondary" type="submit">Sair</button></form>
     </main>
 
-    <script>
+    <script type="module">
+      import { categories, subcategories, materialTypes, OTHER_CLASSIFICATION } from "/classificacoes.js";
+
       const form = document.querySelector("#material-form");
+      const category = document.querySelector("#category");
+      const otherCategoryField = document.querySelector("#other-category-field");
+      const otherCategory = document.querySelector("#other-category");
+      const subcategory = document.querySelector("#subcategory");
+      const otherSubcategoryField = document.querySelector("#other-subcategory-field");
+      const otherSubcategory = document.querySelector("#other-subcategory");
+      const materialTypeField = document.querySelector("#material-type-field");
+      const materialType = document.querySelector("#material-type");
+      const otherMaterialTypeField = document.querySelector("#other-material-type-field");
+      const otherMaterialType = document.querySelector("#other-material-type");
       const unit = document.querySelector("#unit");
       const otherUnitField = document.querySelector("#other-unit-field");
       const otherUnit = document.querySelector("#other-unit");
@@ -111,13 +132,110 @@
       const submitMaterials = document.querySelector("#submit-materials");
       const clearDraft = document.querySelector("#clear-draft");
       const submissionMessage = document.querySelector("#submission-message");
+      const addMaterialButton = document.querySelector("#add-material");
+      const cancelEditButton = document.querySelector("#cancel-edit");
       const drafts = [];
       let requestId = crypto.randomUUID();
+      let editingId = null;
 
       const conditionLabels = { new: "Novo", used: "Usado", refurbished: "Recondicionado", scrap: "Sucata" };
-      const unitLabels = { unit: "Unidade", lot: "Lote", kg: "Quilograma", meter: "Metro", liter: "Litro" };
+      const unitLabels = { unit: "Unidade", lot: "Lote", kg: "Quilograma", meter: "Metro", square_meter: "Metro quadrado (m²)", cubic_meter: "Metro cúbico (m³)", liter: "Litro" };
       const statusLabels = { pending: "Aguardando análise", approved: "Aprovado", rejected: "Recusado" };
       const money = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "USD" });
+
+      function fillSelect(select, options, firstLabel) {
+        select.replaceChildren();
+        const firstOption = document.createElement("option");
+        firstOption.value = "";
+        firstOption.textContent = firstLabel;
+        select.append(firstOption);
+        options.forEach((value) => {
+          const option = document.createElement("option");
+          option.value = value;
+          option.textContent = value;
+          select.append(option);
+        });
+      }
+
+      function toggleCustomField(field, input, visible) {
+        field.hidden = !visible;
+        input.required = visible;
+        if (!visible) input.value = "";
+      }
+
+      function updateMaterialType() {
+        const options = materialTypes[subcategory.value] || [];
+        const visible = options.length > 0;
+        materialTypeField.hidden = !visible;
+        materialType.required = visible;
+        materialType.disabled = !visible;
+        fillSelect(materialType, visible ? [...options, OTHER_CLASSIFICATION] : [], visible ? "Selecione" : "Não se aplica");
+        toggleCustomField(otherMaterialTypeField, otherMaterialType, false);
+      }
+
+      function updateSubcategories() {
+        const options = subcategories[category.value] || [];
+        const categoryIsOther = category.value === OTHER_CLASSIFICATION;
+        toggleCustomField(otherCategoryField, otherCategory, categoryIsOther);
+        subcategory.disabled = options.length === 0;
+        subcategory.required = options.length > 0;
+        fillSelect(subcategory, options.length ? [...options, OTHER_CLASSIFICATION] : [], options.length ? "Selecione" : "Não se aplica");
+        toggleCustomField(otherSubcategoryField, otherSubcategory, false);
+        updateMaterialType();
+      }
+
+      function resetEditor() {
+        editingId = null;
+        form.reset();
+        addMaterialButton.textContent = "Adicionar à lista";
+        cancelEditButton.hidden = true;
+        toggleCustomField(otherCategoryField, otherCategory, false);
+        subcategory.disabled = true;
+        subcategory.required = false;
+        fillSelect(subcategory, [], "Escolha primeiro a categoria");
+        toggleCustomField(otherSubcategoryField, otherSubcategory, false);
+        materialTypeField.hidden = true;
+        materialType.disabled = true;
+        materialType.required = false;
+        toggleCustomField(otherMaterialTypeField, otherMaterialType, false);
+        otherUnitField.hidden = true;
+        otherUnit.required = false;
+        updateCalculations();
+      }
+
+      function editMaterial(material) {
+        editingId = material.id;
+        document.querySelector("#part-number").value = material.partNumber || material.code || "";
+        document.querySelector("#manufacturer").value = material.manufacturer || "";
+        document.querySelector("#description").value = material.description;
+        category.value = material.category;
+        updateSubcategories();
+        otherCategory.value = material.otherCategory || "";
+        if (!subcategory.disabled) {
+          subcategory.value = material.subcategory || "";
+          toggleCustomField(otherSubcategoryField, otherSubcategory, subcategory.value === OTHER_CLASSIFICATION);
+          otherSubcategory.value = material.otherSubcategory || "";
+          updateMaterialType();
+          if (!materialType.disabled) {
+            materialType.value = material.materialType || "";
+            toggleCustomField(otherMaterialTypeField, otherMaterialType, materialType.value === OTHER_CLASSIFICATION);
+            otherMaterialType.value = material.otherMaterialType || "";
+          }
+        }
+        document.querySelector("#condition").value = material.condition;
+        quantity.value = material.quantity;
+        unit.value = material.unit;
+        const customUnit = material.unit === "other";
+        otherUnitField.hidden = !customUnit;
+        otherUnit.required = customUnit;
+        otherUnit.value = material.otherUnit || "";
+        document.querySelector("#certificate").value = material.hasCertificate ? "yes" : "no";
+        price.value = (material.unitPriceCents / 100).toFixed(2).replace(".", ",");
+        addMaterialButton.textContent = "Salvar alterações";
+        cancelEditButton.hidden = false;
+        updateCalculations();
+        document.querySelector("#material-title").scrollIntoView({ behavior: "smooth" });
+      }
 
       function priceInCents(value) {
         const normalized = value.trim().replace(/\s/g, "").replace(",", ".");
@@ -160,23 +278,38 @@
         header.append(title, status);
         const description = document.createElement("p");
         description.textContent = material.description;
+        const classification = document.createElement("p");
+        const classificationParts = [
+          material.category === OTHER_CLASSIFICATION ? material.otherCategory : material.category,
+          material.subcategory === OTHER_CLASSIFICATION ? material.otherSubcategory : material.subcategory,
+          material.materialType === OTHER_CLASSIFICATION ? material.otherMaterialType : material.materialType,
+        ].filter(Boolean);
+        classification.textContent = `Classificação: ${classificationParts.join(" › ")}`;
         const values = document.createElement("div");
         values.className = "material-values";
         const unitLabel = material.unit === "other" ? material.otherUnit : unitLabels[material.unit];
         const certificateLabel = material.hasCertificate ? "Com certificado" : "Sem certificado";
         values.textContent = `${material.quantity} ${unitLabel} · ${conditionLabels[material.condition]} · ${certificateLabel} · ${money.format(material.unitPriceCents / 100)} por unidade de medida · Líquido total ${money.format(material.totalNetCents / 100)}`;
-        item.append(header, description, values);
+        item.append(header, description, classification, values);
         if (removable) {
+          const actions = document.createElement("div");
+          actions.className = "card-actions";
+          const edit = document.createElement("button");
+          edit.type = "button";
+          edit.textContent = "Editar item";
+          edit.addEventListener("click", () => editMaterial(material));
           const remove = document.createElement("button");
           remove.className = "danger";
           remove.type = "button";
           remove.textContent = "Remover da lista";
           remove.addEventListener("click", () => {
             const index = drafts.findIndex((draft) => draft.id === material.id);
-            drafts.splice(index, 1);
+            if (index >= 0) drafts.splice(index, 1);
+            if (editingId === material.id) resetEditor();
             renderDrafts();
           });
-          item.append(remove);
+          actions.append(edit, remove);
+          item.append(actions);
         }
         return item;
       }
@@ -207,14 +340,26 @@
         otherUnit.required = isOther;
         if (!isOther) otherUnit.value = "";
       });
+      category.addEventListener("change", updateSubcategories);
+      subcategory.addEventListener("change", () => {
+        toggleCustomField(otherSubcategoryField, otherSubcategory, subcategory.value === OTHER_CLASSIFICATION);
+        updateMaterialType();
+      });
+      materialType.addEventListener("change", () => {
+        toggleCustomField(otherMaterialTypeField, otherMaterialType, materialType.value === OTHER_CLASSIFICATION);
+      });
       quantity.addEventListener("input", updateCalculations);
       price.addEventListener("input", () => {
         price.setCustomValidity("");
         updateCalculations();
       });
 
-      form.addEventListener("submit", (event) => {
-        event.preventDefault();
+      form.addEventListener("keydown", (event) => {
+        if (event.key === "Enter" && event.target.tagName !== "TEXTAREA") event.preventDefault();
+      });
+      form.addEventListener("submit", (event) => event.preventDefault());
+
+      addMaterialButton.addEventListener("click", () => {
         if (!form.reportValidity()) return;
         const values = calculations();
         if (values.unitPrice <= 0) {
@@ -223,22 +368,27 @@
           return;
         }
         price.setCustomValidity("");
-        drafts.push({
-          id: crypto.randomUUID(), partNumber: document.querySelector("#part-number").value.trim(), manufacturer: document.querySelector("#manufacturer").value.trim(),
-          description: document.querySelector("#description").value.trim(), category: document.querySelector("#category").value.trim(),
+        const material = {
+          id: editingId || crypto.randomUUID(), partNumber: document.querySelector("#part-number").value.trim(), manufacturer: document.querySelector("#manufacturer").value.trim(),
+          description: document.querySelector("#description").value.trim(), category: category.value,
+          otherCategory: otherCategory.value.trim(), subcategory: subcategory.value,
+          otherSubcategory: otherSubcategory.value.trim(), materialType: materialType.value,
+          otherMaterialType: otherMaterialType.value.trim(),
           condition: document.querySelector("#condition").value, quantity: Number(quantity.value), unit: unit.value, otherUnit: otherUnit.value.trim(),
           hasCertificate: document.querySelector("#certificate").value === "yes", unitPriceCents: values.unitPrice,
           unitCommissionCents: values.unitCommission, unitNetCents: values.unitNet, totalPriceCents: values.totalPrice,
           totalCommissionCents: values.totalCommission, totalNetCents: values.totalNet,
-        });
-        form.reset();
-        otherUnitField.hidden = true;
-        updateCalculations();
+        };
+        const existingIndex = drafts.findIndex((draft) => draft.id === editingId);
+        if (existingIndex >= 0) drafts[existingIndex] = material;
+        else drafts.push(material);
+        resetEditor();
         renderDrafts();
         document.querySelector("#draft-title").scrollIntoView({ behavior: "smooth" });
       });
 
-      clearDraft.addEventListener("click", () => { drafts.length = 0; renderDrafts(); });
+      cancelEditButton.addEventListener("click", resetEditor);
+      clearDraft.addEventListener("click", () => { drafts.length = 0; resetEditor(); renderDrafts(); });
       submitMaterials.addEventListener("click", async () => {
         submitMaterials.disabled = true;
         clearDraft.disabled = true;
@@ -267,6 +417,8 @@
         }
       });
 
+      fillSelect(category, [...categories, OTHER_CLASSIFICATION], "Selecione");
+      resetEditor();
       loadMaterials();
     </script>
   </body>
