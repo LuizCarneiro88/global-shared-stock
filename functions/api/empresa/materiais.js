@@ -57,7 +57,7 @@ function normalizedMaterial(input, manifest) {
   const photos = files.filter((file) => file.kind === "photo");
   const certificates = files.filter((file) => file.kind === "certificate");
   if (photos.length < 1 || photos.length > MAX_PHOTOS) throw new Error("Inclua de 1 a 6 fotografias em cada material.");
-  if (input.hasCertificate === true && certificates.length !== 1) throw new Error("Inclua o certificado em PDF.");
+  if (input.hasCertificate === true && certificates.length !== 1) throw new Error("Inclua o certificado em PDF, JPG, PNG ou WebP.");
   if (input.hasCertificate !== true && certificates.length) throw new Error("Remova o certificado ou marque que o material possui certificado.");
   const coverPhotoId = photos.some((photo) => photo.id === input.coverPhotoId) ? input.coverPhotoId : photos[0].id;
 

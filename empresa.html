@@ -79,7 +79,7 @@
             <div><label for="unit">Unidade de medida *</label><select id="unit" required><option value="">Selecione</option><option value="unit">Unidade</option><option value="lot">Lote</option><option value="kg">Quilograma</option><option value="meter">Metro</option><option value="square_meter">Metro quadrado (m²)</option><option value="cubic_meter">Metro cúbico (m³)</option><option value="liter">Litro</option><option value="other">Outro</option></select></div>
             <div id="other-unit-field" hidden><label for="other-unit">Outra unidade *</label><input id="other-unit" maxlength="30" /></div>
             <div><label for="certificate">Possui certificado? *</label><select id="certificate" required><option value="">Selecione</option><option value="yes">Sim</option><option value="no">Não</option></select></div>
-            <div><label for="price">Preço final unitário (US$) *</label><input id="price" type="text" inputmode="decimal" placeholder="0,00" required /><p class="help">Informe o preço final já incluindo a comissão de 10%.</p></div>
+            <div><label for="price">Preço final unitário (US$) *</label><input id="price" type="text" inputmode="decimal" placeholder="0.00" required /><p class="help">Informe o preço final já incluindo a comissão de 10%. Use ponto para os centavos.</p></div>
             <div class="field-wide">
               <label>Fotografias * <span class="help">(de 1 a 6)</span></label>
               <div id="photo-zone" class="upload-zone" role="button" tabindex="0"><span><strong>Adicionar fotografias</strong>Arraste aqui ou toque para usar a câmera ou galeria.</span></div>
@@ -89,19 +89,19 @@
             </div>
             <div id="certificate-file-field" class="field-wide" hidden>
               <label>Arquivo do certificado *</label>
-              <div id="certificate-zone" class="upload-zone" role="button" tabindex="0"><span><strong>Adicionar certificado</strong>Arraste o PDF aqui ou toque para selecionar.</span></div>
-              <input id="certificate-input" type="file" accept="application/pdf" hidden />
+              <div id="certificate-zone" class="upload-zone" role="button" tabindex="0"><span><strong>Adicionar certificado em PDF ou imagem</strong>Arraste o arquivo aqui ou toque para selecionar.</span></div>
+              <input id="certificate-input" type="file" accept="application/pdf,image/jpeg,image/png,image/webp" hidden />
               <ul id="certificate-list" class="file-preview-list"></ul>
               <p id="certificate-status" class="upload-status" role="status"></p>
             </div>
           </div>
 
           <div class="calculations" aria-live="polite">
-            <div class="calculation"><span>Comissão unitária</span><strong id="unit-commission">US$ 0,00</strong></div>
-            <div class="calculation"><span>Líquido unitário</span><strong id="unit-net">US$ 0,00</strong></div>
-            <div class="calculation"><span>Valor final total</span><strong id="total-price">US$ 0,00</strong></div>
-            <div class="calculation"><span>Comissão total</span><strong id="total-commission">US$ 0,00</strong></div>
-            <div class="calculation"><span>Líquido total</span><strong id="total-net">US$ 0,00</strong></div>
+            <div class="calculation"><span>Comissão unitária</span><strong id="unit-commission">US$ 0.00</strong></div>
+            <div class="calculation"><span>Líquido unitário</span><strong id="unit-net">US$ 0.00</strong></div>
+            <div class="calculation"><span>Valor final total</span><strong id="total-price">US$ 0.00</strong></div>
+            <div class="calculation"><span>Comissão total</span><strong id="total-commission">US$ 0.00</strong></div>
+            <div class="calculation"><span>Líquido total</span><strong id="total-net">US$ 0.00</strong></div>
           </div>
           <div class="list-actions">
             <button id="add-material" type="button">Adicionar à lista</button>
@@ -180,7 +180,8 @@
       const conditionLabels = { new: "Novo", used: "Usado", refurbished: "Recondicionado", scrap: "Sucata" };
       const unitLabels = { unit: "Unidade", lot: "Lote", kg: "Quilograma", meter: "Metro", square_meter: "Metro quadrado (m²)", cubic_meter: "Metro cúbico (m³)", liter: "Litro" };
       const statusLabels = { pending: "Aguardando análise", approved: "Aprovado", rejected: "Recusado" };
-      const money = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "USD" });
+      const americanNumber = new Intl.NumberFormat("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      const money = { format: (value) => `US$ ${americanNumber.format(value)}` };
 
       function fillSelect(select, options, firstLabel) {
         select.replaceChildren();
@@ -417,7 +418,7 @@
         certificate.value = material.hasCertificate ? "yes" : "no";
         certificateFileField.hidden = !material.hasCertificate;
         renderFiles();
-        price.value = (material.unitPriceCents / 100).toFixed(2).replace(".", ",");
+        price.value = americanNumber.format(material.unitPriceCents / 100);
         addMaterialButton.textContent = "Salvar alterações";
         cancelEditButton.hidden = false;
         updateCalculations();
@@ -425,10 +426,21 @@
       }
 
       function priceInCents(value) {
-        const normalized = value.trim().replace(/\s/g, "").replace(",", ".");
+        const normalized = value.trim().replace(/\s/g, "").replaceAll(",", "");
         if (!/^\d+(\.\d{1,2})?$/.test(normalized)) return 0;
         const [whole, decimals = ""] = normalized.split(".");
         return Number(whole) * 100 + Number(decimals.padEnd(2, "0"));
+      }
+
+      function formatPriceInput(value) {
+        const cleaned = value.replaceAll(",", "").replace(/[^\d.]/g, "");
+        if (!cleaned) return "";
+        const hasDecimalPoint = cleaned.includes(".");
+        const parts = cleaned.split(".");
+        const integer = (parts.shift() || "0").replace(/^0+(?=\d)/, "");
+        const decimals = parts.join("").slice(0, 2);
+        const grouped = integer.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+        return `${grouped}${hasDecimalPoint ? `.${decimals}` : ""}`;
       }
 
       function calculations() {
@@ -572,8 +584,13 @@
       setupUploadZone(document.querySelector("#certificate-zone"), certificateInput, handleCertificate);
       quantity.addEventListener("input", updateCalculations);
       price.addEventListener("input", () => {
+        price.value = formatPriceInput(price.value);
         price.setCustomValidity("");
         updateCalculations();
+      });
+      price.addEventListener("blur", () => {
+        const cents = priceInCents(price.value);
+        if (cents > 0) price.value = americanNumber.format(cents / 100);
       });
 
       form.addEventListener("keydown", (event) => {
@@ -590,7 +607,7 @@
           return;
         }
         if (certificate.value === "yes" && !currentFiles.certificate) {
-          certificateStatus.textContent = "Adicione o certificado em PDF.";
+          certificateStatus.textContent = "Adicione o certificado em PDF, JPG, PNG ou WebP.";
           document.querySelector("#certificate-zone").focus();
           return;
         }

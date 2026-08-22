@@ -19,7 +19,7 @@ export async function onRequestPost(context) {
   if (!['photo', 'certificate'].includes(kind) || !(file instanceof File) || file.size <= 0) return error("Arquivo inválido.");
   const maximumSize = kind === "photo" ? MAX_PHOTO_SIZE : MAX_CERTIFICATE_SIZE;
   if (file.size > maximumSize) return error(kind === "photo" ? "Cada fotografia pode ter no máximo 8 MB." : "O certificado pode ter no máximo 10 MB.");
-  if (!(await validFileType(file, kind))) return error(kind === "photo" ? "Envie uma fotografia JPG, PNG ou WebP válida." : "Envie um certificado em PDF válido.");
+  if (!(await validFileType(file, kind))) return error(kind === "photo" ? "Envie uma fotografia JPG, PNG ou WebP válida." : "Envie um certificado em PDF, JPG, PNG ou WebP válido.");
 
   const key = manifestKey(session.companyId, materialId);
   const manifest = await context.env.CADASTROS.get(key, "json") || [];

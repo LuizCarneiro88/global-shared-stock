@@ -487,7 +487,8 @@
       };
       const conditionLabels = { new: "Novo", used: "Usado", refurbished: "Recondicionado", scrap: "Sucata" };
       const unitLabels = { unit: "Unidade", lot: "Lote", kg: "Quilograma", meter: "Metro", square_meter: "Metro quadrado (m²)", cubic_meter: "Metro cúbico (m³)", liter: "Litro" };
-      const money = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "USD" });
+      const americanNumber = new Intl.NumberFormat("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      const money = { format: (value) => `US$ ${americanNumber.format(value)}` };
 
       function selectTab(selectedButton, selectedPanel) {
         document.querySelectorAll(".tab-button").forEach((button) => button.setAttribute("aria-selected", String(button === selectedButton)));
