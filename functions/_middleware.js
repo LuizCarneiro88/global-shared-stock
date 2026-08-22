@@ -6,6 +6,10 @@ export async function onRequest(context) {
     url.pathname === "/api/login" ||
     url.pathname === "/api/acesso/ativar" ||
     url.pathname === "/api/acesso/redefinir" ||
+    url.pathname === "/api/anuncios" ||
+    url.pathname.startsWith("/api/anuncios/") ||
+    url.pathname === "/anuncios" ||
+    url.pathname === "/anuncios.html" ||
     url.pathname === "/redefinir-senha" ||
     url.pathname === "/redefinir-senha.html" ||
     (url.pathname === "/api/cadastros" && context.request.method === "POST");

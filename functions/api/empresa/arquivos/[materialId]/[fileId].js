@@ -25,7 +25,8 @@ export async function onRequestDelete(context) {
   if (!context.env.CADASTROS || !context.env.MATERIAL_FILES) return new Response("Armazenamento não configurado.", { status: 503 });
   const result = await information(context);
   if (result.error) return result.error;
-  if (await context.env.CADASTROS.get(`material:${result.session.companyId}:${result.materialId}`)) {
+  const submittedMaterial = await context.env.CADASTROS.get(`material:${result.session.companyId}:${result.materialId}`, "json");
+  if (submittedMaterial && submittedMaterial.status !== "rejected") {
     return new Response("Os arquivos não podem ser alterados depois do envio para análise.", { status: 409 });
   }
   await context.env.MATERIAL_FILES.delete(objectKey(result.session.companyId, result.materialId, result.fileId));

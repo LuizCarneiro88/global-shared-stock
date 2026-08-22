@@ -128,7 +128,13 @@ export async function onRequestPost(context) {
   try {
     materials = await Promise.all(input.materials.map(async (material) => {
       const manifest = await context.env.CADASTROS.get(manifestKey(session.companyId, material.id), "json") || [];
-      return normalizedMaterial(material, manifest);
+      const existing = await context.env.CADASTROS.get(`material:${session.companyId}:${material.id}`, "json");
+      if (existing && existing.status !== "rejected") throw new Error("Este material já foi enviado para análise.");
+      const normalized = normalizedMaterial(material, manifest);
+      if (!existing) return normalized;
+      const reviewHistory = Array.isArray(existing.reviewHistory) ? existing.reviewHistory : [];
+      reviewHistory.push({ status: "rejected", reason: existing.rejectionReason, decidedAt: existing.decidedAt });
+      return { ...normalized, reviewHistory, resubmittedAt: new Date().toISOString() };
     }));
   } catch (validationError) { return error(validationError.message); }
 

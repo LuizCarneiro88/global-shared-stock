@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Materiais disponíveis na Global Shared Stock." />
+    <title>Pesquisar materiais | Global Shared Stock</title>
+    <style>
+      :root { color-scheme: dark; --background: #090b0d; --surface: #111418; --surface-light: #171b20; --text: #f4f5f6; --muted: #a9afb7; --silver: #c5c9ce; --line: #343940; }
+      * { box-sizing: border-box; }
+      body { min-width: 320px; min-height: 100vh; margin: 0; background: var(--background); color: var(--text); font-family: Inter, ui-sans-serif, system-ui, sans-serif; }
+      main { width: min(100% - 24px, 1000px); margin: 0 auto; padding: 28px 0 56px; }
+      .brand { margin: 0 0 20px; color: var(--silver); font-weight: 800; letter-spacing: .14em; text-transform: uppercase; }
+      h1 { margin: 0; font-size: clamp(2.2rem, 10vw, 4rem); }
+      .introduction { color: var(--muted); line-height: 1.5; }
+      .search { width: 100%; min-height: 52px; margin: 18px 0; padding: 12px 14px; border: 1px solid #555b63; border-radius: 12px; background: var(--surface); color: var(--text); font: inherit; }
+      .list { display: grid; gap: 14px; margin: 0; padding: 0; list-style: none; }
+      .card { overflow: hidden; border: 1px solid var(--line); border-radius: 16px; background: var(--surface); }
+      .card img { display: block; width: 100%; aspect-ratio: 16 / 10; object-fit: cover; background: var(--surface-light); }
+      .content { padding: 17px; }
+      h2 { margin: 0; font-size: 1.2rem; }
+      .classification, .details { margin: 9px 0 0; color: var(--muted); line-height: 1.45; }
+      .price { display: block; margin-top: 14px; color: var(--text); font-size: 1.2rem; }
+      .back { display: block; width: fit-content; margin: 24px auto 0; color: var(--silver); text-underline-offset: 4px; }
+      @media (min-width: 700px) { main { padding-top: 48px; } .list { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+    </style>
+  </head>
+  <body>
+    <main>
+      <p class="brand">Global Shared Stock</p>
+      <h1>Pesquisar materiais</h1>
+      <p class="introduction">Consulte os materiais aprovados e disponíveis na plataforma.</p>
+      <input id="search" class="search" type="search" placeholder="Busque por descrição, part number, fabricante ou categoria" aria-label="Pesquisar materiais" />
+      <p id="empty" class="introduction">Carregando anúncios...</p>
+      <ul id="list" class="list"></ul>
+      <a class="back" href="index.html">Voltar ao início</a>
+    </main>
+    <script>
+      const list = document.querySelector("#list");
+      const empty = document.querySelector("#empty");
+      const search = document.querySelector("#search");
+      const americanNumber = new Intl.NumberFormat("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      const conditionLabels = { new: "Novo", used: "Usado", refurbished: "Recondicionado", scrap: "Sucata" };
+      const unitLabels = { unit: "Unidade", lot: "Lote", kg: "Quilograma", meter: "Metro", square_meter: "Metro quadrado (m²)", cubic_meter: "Metro cúbico (m³)", liter: "Litro" };
+      let advertisements = [];
+
+      function card(advertisement) {
+        const item = document.createElement("li");
+        item.className = "card";
+        const cover = advertisement.photos.find((photo) => photo.id === advertisement.coverPhotoId) || advertisement.photos[0];
+        if (cover) {
+          const image = document.createElement("img");
+          image.src = cover.url;
+          image.alt = "Fotografia do material anunciado";
+          item.append(image);
+        }
+        const content = document.createElement("div");
+        content.className = "content";
+        const title = document.createElement("h2");
+        title.textContent = advertisement.description;
+        const category = advertisement.category === "Outro" ? advertisement.otherCategory : advertisement.category;
+        const subcategory = advertisement.subcategory === "Outro" ? advertisement.otherSubcategory : advertisement.subcategory;
+        const classification = document.createElement("p");
+        classification.className = "classification";
+        classification.textContent = [category, subcategory].filter(Boolean).join(" › ");
+        const details = document.createElement("p");
+        details.className = "details";
+        const unit = advertisement.unit === "other" ? advertisement.otherUnit : unitLabels[advertisement.unit];
+        details.textContent = `${conditionLabels[advertisement.condition]} · ${advertisement.quantity} ${unit} · ${advertisement.hasCertificate ? "Possui certificado" : "Sem certificado"}`;
+        const price = document.createElement("strong");
+        price.className = "price";
+        price.textContent = `US$ ${americanNumber.format(advertisement.unitPriceCents / 100)}`;
+        content.append(title, classification, details, price);
+        item.append(content);
+        return item;
+      }
+
+      function render() {
+        const term = search.value.trim().toLocaleLowerCase("pt-BR");
+        const filtered = advertisements.filter((advertisement) => [advertisement.description, advertisement.partNumber, advertisement.manufacturer, advertisement.category, advertisement.subcategory].filter(Boolean).join(" ").toLocaleLowerCase("pt-BR").includes(term));
+        list.replaceChildren(...filtered.map(card));
+        empty.textContent = filtered.length ? "" : "Nenhum material encontrado.";
+        empty.hidden = filtered.length > 0;
+      }
+
+      search.addEventListener("input", render);
+      fetch("/api/anuncios").then(async (response) => {
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.message || "Não foi possível carregar os anúncios.");
+        advertisements = result.advertisements;
+        render();
+      }).catch((error) => { empty.textContent = error.message; });
+    </script>
+  </body>
+</html>

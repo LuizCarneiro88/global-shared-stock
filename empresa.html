@@ -179,7 +179,7 @@
 
       const conditionLabels = { new: "Novo", used: "Usado", refurbished: "Recondicionado", scrap: "Sucata" };
       const unitLabels = { unit: "Unidade", lot: "Lote", kg: "Quilograma", meter: "Metro", square_meter: "Metro quadrado (m²)", cubic_meter: "Metro cúbico (m³)", liter: "Litro" };
-      const statusLabels = { pending: "Aguardando análise", approved: "Aprovado", rejected: "Recusado" };
+      const statusLabels = { pending: "Aguardando análise", approved: "Aprovado", rejected: "Rejeitado" };
       const americanNumber = new Intl.NumberFormat("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
       const money = { format: (value) => `US$ ${americanNumber.format(value)}` };
 
@@ -490,6 +490,18 @@
         const certificateLabel = material.hasCertificate ? "Com certificado" : "Sem certificado";
         values.textContent = `${material.quantity} ${unitLabel} · ${conditionLabels[material.condition]} · ${certificateLabel} · ${money.format(material.unitPriceCents / 100)} por unidade de medida · Líquido total ${money.format(material.totalNetCents / 100)}`;
         item.append(header, description, classification, values);
+        if (!removable && material.status === "rejected") {
+          const rejection = document.createElement("p");
+          rejection.textContent = `Motivo da rejeição: ${material.rejectionReason}`;
+          const correctionActions = document.createElement("div");
+          correctionActions.className = "card-actions";
+          const correct = document.createElement("button");
+          correct.type = "button";
+          correct.textContent = "Corrigir e reenviar";
+          correct.addEventListener("click", () => editMaterial(material));
+          correctionActions.append(correct);
+          item.append(rejection, correctionActions);
+        }
         if (removable) {
           const actions = document.createElement("div");
           actions.className = "card-actions";

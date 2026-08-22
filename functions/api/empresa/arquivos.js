@@ -15,7 +15,8 @@ export async function onRequestPost(context) {
   const kind = String(formData.get("kind") || "");
   const file = formData.get("file");
   if (!MATERIAL_ID_PATTERN.test(materialId)) return error("Identificação do material inválida.");
-  if (await context.env.CADASTROS.get(`material:${session.companyId}:${materialId}`)) return error("Os arquivos não podem ser alterados depois do envio para análise.", 409);
+  const submittedMaterial = await context.env.CADASTROS.get(`material:${session.companyId}:${materialId}`, "json");
+  if (submittedMaterial && submittedMaterial.status !== "rejected") return error("Os arquivos não podem ser alterados depois do envio para análise.", 409);
   if (!['photo', 'certificate'].includes(kind) || !(file instanceof File) || file.size <= 0) return error("Arquivo inválido.");
   const maximumSize = kind === "photo" ? MAX_PHOTO_SIZE : MAX_CERTIFICATE_SIZE;
   if (file.size > maximumSize) return error(kind === "photo" ? "Cada fotografia pode ter no máximo 8 MB." : "O certificado pode ter no máximo 10 MB.");

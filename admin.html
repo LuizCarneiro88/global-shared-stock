@@ -358,6 +358,9 @@
       .material-gallery { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin: 10px 0 14px; }
       .material-gallery a { display: block; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: var(--surface); }
       .material-gallery img { display: block; width: 100%; aspect-ratio: 1; object-fit: cover; }
+      .material-review { display: grid; gap: 10px; margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--line); }
+      .material-review label { font-weight: 700; }
+      .material-review textarea { width: 100%; min-height: 100px; padding: 11px; border: 1px solid #555b63; border-radius: 9px; background: var(--surface); color: var(--text); font: inherit; resize: vertical; }
 
       .back-link {
         display: block;
@@ -719,6 +722,8 @@
         addDetail(details, "Líquido do vendedor", money.format(material.totalNetCents / 100));
         addDetail(details, "Certificado", material.hasCertificate ? "Sim" : "Não");
         addDetail(details, "Enviado em", new Intl.DateTimeFormat("pt-BR", { dateStyle: "long", timeStyle: "short" }).format(new Date(material.submittedAt)));
+        if (material.status === "rejected") addDetail(details, "Motivo da rejeição", material.rejectionReason);
+        if (material.decidedAt) addDetail(details, "Avaliado em", new Intl.DateTimeFormat("pt-BR", { dateStyle: "long", timeStyle: "short" }).format(new Date(material.decidedAt)));
         const files = Array.isArray(material.files) ? material.files : [];
         const photos = files.filter((file) => file.kind === "photo");
         const certificate = files.find((file) => file.kind === "certificate");
@@ -755,7 +760,76 @@
           certificateLink.textContent = "Visualizar certificado";
           fileSection.append(certificateLink);
         }
-        article.append(cardHeader, details, fileSection);
+        const review = document.createElement("section");
+        review.className = "material-review";
+        if (material.status === "pending") {
+          const reviewActions = document.createElement("div");
+          reviewActions.className = "actions";
+          const approve = document.createElement("button");
+          approve.className = "action-button approve-button";
+          approve.type = "button";
+          approve.textContent = "Aprovar material";
+          const reject = document.createElement("button");
+          reject.className = "action-button reject-button";
+          reject.type = "button";
+          reject.textContent = "Rejeitar material";
+          reviewActions.append(approve, reject);
+          const rejectionForm = document.createElement("div");
+          rejectionForm.hidden = true;
+          const reasonLabel = document.createElement("label");
+          reasonLabel.textContent = "Motivo da rejeição *";
+          const reason = document.createElement("textarea");
+          reason.maxLength = 500;
+          reason.placeholder = "Explique claramente o que a empresa precisa corrigir.";
+          const confirmReject = document.createElement("button");
+          confirmReject.className = "action-button reject-button";
+          confirmReject.type = "button";
+          confirmReject.textContent = "Confirmar rejeição";
+          rejectionForm.append(reasonLabel, reason, confirmReject);
+          const feedback = document.createElement("p");
+          feedback.className = "feedback";
+          feedback.role = "status";
+          feedback.tabIndex = -1;
+          feedback.hidden = true;
+
+          async function decide(decision) {
+            if (decision === "rejected" && !reason.value.trim()) {
+              reason.setCustomValidity("Informe o motivo da rejeição.");
+              reason.reportValidity();
+              return;
+            }
+            reason.setCustomValidity("");
+            approve.disabled = true;
+            reject.disabled = true;
+            confirmReject.disabled = true;
+            feedback.hidden = true;
+            try {
+              const response = await fetch(`/api/materiais/${material.companyId}/${material.id}`, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ status: decision, rejectionReason: reason.value }),
+              });
+              const result = await response.json();
+              if (!response.ok) throw new Error(result.message || "Não foi possível salvar a decisão.");
+              Object.assign(material, result.material);
+              article.replaceWith(createMaterialCard(material));
+              pendingMaterialCount.textContent = Math.max(0, Number(pendingMaterialCount.textContent) - 1);
+            } catch (error) {
+              feedback.textContent = error.message;
+              feedback.hidden = false;
+              feedback.focus();
+              approve.disabled = false;
+              reject.disabled = false;
+              confirmReject.disabled = false;
+            }
+          }
+
+          approve.addEventListener("click", () => decide("approved"));
+          reject.addEventListener("click", () => { rejectionForm.hidden = false; reason.focus(); });
+          confirmReject.addEventListener("click", () => decide("rejected"));
+          review.append(reviewActions, rejectionForm, feedback);
+        }
+        article.append(cardHeader, details, fileSection, review);
         return article;
       }
 
