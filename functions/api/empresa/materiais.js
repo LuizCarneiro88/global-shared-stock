@@ -1,4 +1,5 @@
 import { getSession } from "../../_auth.js";
+import { MAX_PHOTOS, manifestKey } from "../../_material-files.js";
 import { categories, subcategories, materialTypes, OTHER_CLASSIFICATION } from "../../../classificacoes.js";
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -14,7 +15,7 @@ function cleanText(value, maximumLength) {
   return typeof value === "string" ? value.trim().slice(0, maximumLength) : "";
 }
 
-function normalizedMaterial(input) {
+function normalizedMaterial(input, manifest) {
   const quantity = Number(input.quantity);
   const unitPriceCents = Number(input.unitPriceCents);
   if (!UUID_PATTERN.test(input.id || "")) throw new Error("Identificação de material inválida.");
@@ -50,6 +51,16 @@ function normalizedMaterial(input) {
   }
   if (!Number.isInteger(unitPriceCents) || unitPriceCents <= 0) throw new Error("Informe um preço maior que zero.");
 
+  const requestedFileIds = Array.isArray(input.files) ? [...new Set(input.files.map((file) => file?.id).filter(Boolean))] : [];
+  const files = requestedFileIds.map((id) => manifest.find((file) => file.id === id)).filter(Boolean);
+  if (files.length !== requestedFileIds.length) throw new Error("Um dos arquivos do material não foi encontrado. Envie-o novamente.");
+  const photos = files.filter((file) => file.kind === "photo");
+  const certificates = files.filter((file) => file.kind === "certificate");
+  if (photos.length < 1 || photos.length > MAX_PHOTOS) throw new Error("Inclua de 1 a 6 fotografias em cada material.");
+  if (input.hasCertificate === true && certificates.length !== 1) throw new Error("Inclua o certificado em PDF.");
+  if (input.hasCertificate !== true && certificates.length) throw new Error("Remova o certificado ou marque que o material possui certificado.");
+  const coverPhotoId = photos.some((photo) => photo.id === input.coverPhotoId) ? input.coverPhotoId : photos[0].id;
+
   const unitCommissionCents = Math.round(unitPriceCents / 10);
   const unitNetCents = unitPriceCents - unitCommissionCents;
   const totalPriceCents = Math.round(unitPriceCents * quantity);
@@ -71,6 +82,8 @@ function normalizedMaterial(input) {
     unit: input.unit,
     otherUnit: input.unit === "other" ? cleanText(input.otherUnit, 30) : "",
     hasCertificate: input.hasCertificate === true,
+    files,
+    coverPhotoId,
     unitPriceCents,
     unitCommissionCents,
     unitNetCents,
@@ -112,7 +125,12 @@ export async function onRequestPost(context) {
   if (input.materials.length > 100) return error("Envie no máximo 100 materiais por vez.");
 
   let materials;
-  try { materials = input.materials.map(normalizedMaterial); } catch (validationError) { return error(validationError.message); }
+  try {
+    materials = await Promise.all(input.materials.map(async (material) => {
+      const manifest = await context.env.CADASTROS.get(manifestKey(session.companyId, material.id), "json") || [];
+      return normalizedMaterial(material, manifest);
+    }));
+  } catch (validationError) { return error(validationError.message); }
 
   try {
     await Promise.all(materials.map((material) => context.env.CADASTROS.put(

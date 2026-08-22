@@ -354,6 +354,11 @@
         font: inherit;
       }
 
+      .material-files { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--line); }
+      .material-gallery { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin: 10px 0 14px; }
+      .material-gallery a { display: block; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: var(--surface); }
+      .material-gallery img { display: block; width: 100%; aspect-ratio: 1; object-fit: cover; }
+
       .back-link {
         display: block;
         width: fit-content;
@@ -713,7 +718,43 @@
         addDetail(details, "Líquido do vendedor", money.format(material.totalNetCents / 100));
         addDetail(details, "Certificado", material.hasCertificate ? "Sim" : "Não");
         addDetail(details, "Enviado em", new Intl.DateTimeFormat("pt-BR", { dateStyle: "long", timeStyle: "short" }).format(new Date(material.submittedAt)));
-        article.append(cardHeader, details);
+        const files = Array.isArray(material.files) ? material.files : [];
+        const photos = files.filter((file) => file.kind === "photo");
+        const certificate = files.find((file) => file.kind === "certificate");
+        const fileSection = document.createElement("section");
+        fileSection.className = "material-files";
+        const fileTitle = document.createElement("h3");
+        fileTitle.textContent = "Fotografias e certificado";
+        const gallery = document.createElement("div");
+        gallery.className = "material-gallery";
+        photos.forEach((file) => {
+          const link = document.createElement("a");
+          link.href = `/api/materiais/${material.companyId}/${material.id}/arquivos/${file.id}`;
+          link.target = "_blank";
+          link.rel = "noopener";
+          const image = document.createElement("img");
+          image.src = link.href;
+          image.alt = file.id === material.coverPhotoId ? "Fotografia principal do material" : "Fotografia do material";
+          link.append(image);
+          gallery.append(link);
+        });
+        fileSection.append(fileTitle, gallery);
+        if (!photos.length) {
+          const noPhotos = document.createElement("p");
+          noPhotos.className = "feedback";
+          noPhotos.textContent = "Este material foi enviado antes da exigência de fotografias.";
+          fileSection.append(noPhotos);
+        }
+        if (certificate) {
+          const certificateLink = document.createElement("a");
+          certificateLink.className = "document-button";
+          certificateLink.href = `/api/materiais/${material.companyId}/${material.id}/arquivos/${certificate.id}`;
+          certificateLink.target = "_blank";
+          certificateLink.rel = "noopener";
+          certificateLink.textContent = "Visualizar certificado";
+          fileSection.append(certificateLink);
+        }
+        article.append(cardHeader, details, fileSection);
         return article;
       }
 

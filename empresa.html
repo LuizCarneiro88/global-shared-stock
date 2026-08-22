@@ -21,6 +21,16 @@
       textarea { min-height: 110px; resize: vertical; }
       input:focus, select:focus, textarea:focus { outline: none; border-color: var(--silver); box-shadow: 0 0 0 3px rgb(197 201 206 / 12%); }
       .help { margin: 7px 0 0; color: var(--muted); font-size: 0.78rem; line-height: 1.4; }
+      .upload-zone { display: grid; place-items: center; min-height: 110px; padding: 18px; border: 2px dashed #555b63; border-radius: 12px; background: var(--surface-light); color: var(--muted); text-align: center; cursor: pointer; }
+      .upload-zone.dragging { border-color: var(--silver); color: var(--text); }
+      .upload-zone strong { display: block; margin-bottom: 5px; color: var(--text); }
+      .file-preview-list { display: grid; gap: 10px; margin: 12px 0 0; padding: 0; list-style: none; }
+      .file-preview { display: grid; grid-template-columns: 64px minmax(0, 1fr); gap: 10px; align-items: center; padding: 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface-light); }
+      .file-preview img { width: 64px; height: 64px; border-radius: 8px; object-fit: cover; }
+      .file-preview-name { overflow-wrap: anywhere; color: var(--text); font-size: 0.82rem; }
+      .file-preview-actions { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 7px; }
+      .file-preview-actions button { min-height: 36px; padding: 7px 10px; font-size: 0.76rem; }
+      .upload-status { margin: 9px 0 0; color: var(--muted); font-size: 0.8rem; }
       .calculations { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin: 18px 0; }
       .calculation { padding: 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface-light); }
       .calculation span { display: block; color: var(--muted); font-size: 0.72rem; }
@@ -70,6 +80,20 @@
             <div id="other-unit-field" hidden><label for="other-unit">Outra unidade *</label><input id="other-unit" maxlength="30" /></div>
             <div><label for="certificate">Possui certificado? *</label><select id="certificate" required><option value="">Selecione</option><option value="yes">Sim</option><option value="no">Não</option></select></div>
             <div><label for="price">Preço final unitário (US$) *</label><input id="price" type="text" inputmode="decimal" placeholder="0,00" required /><p class="help">Informe o preço final já incluindo a comissão de 10%.</p></div>
+            <div class="field-wide">
+              <label>Fotografias * <span class="help">(de 1 a 6)</span></label>
+              <div id="photo-zone" class="upload-zone" role="button" tabindex="0"><span><strong>Adicionar fotografias</strong>Arraste aqui ou toque para usar a câmera ou galeria.</span></div>
+              <input id="photo-input" type="file" accept="image/jpeg,image/png,image/webp" multiple hidden />
+              <ul id="photo-list" class="file-preview-list"></ul>
+              <p id="photo-status" class="upload-status" role="status"></p>
+            </div>
+            <div id="certificate-file-field" class="field-wide" hidden>
+              <label>Arquivo do certificado *</label>
+              <div id="certificate-zone" class="upload-zone" role="button" tabindex="0"><span><strong>Adicionar certificado</strong>Arraste o PDF aqui ou toque para selecionar.</span></div>
+              <input id="certificate-input" type="file" accept="application/pdf" hidden />
+              <ul id="certificate-list" class="file-preview-list"></ul>
+              <p id="certificate-status" class="upload-status" role="status"></p>
+            </div>
           </div>
 
           <div class="calculations" aria-live="polite">
@@ -136,10 +160,22 @@
       const draftStatus = document.querySelector("#draft-status");
       const addMaterialButton = document.querySelector("#add-material");
       const cancelEditButton = document.querySelector("#cancel-edit");
+      const certificate = document.querySelector("#certificate");
+      const certificateFileField = document.querySelector("#certificate-file-field");
+      const photoInput = document.querySelector("#photo-input");
+      const certificateInput = document.querySelector("#certificate-input");
+      const photoList = document.querySelector("#photo-list");
+      const certificateList = document.querySelector("#certificate-list");
+      const photoStatus = document.querySelector("#photo-status");
+      const certificateStatus = document.querySelector("#certificate-status");
       const drafts = [];
       let requestId = crypto.randomUUID();
       let editingId = null;
       let draftStorageKey = "";
+      let currentMaterialId = crypto.randomUUID();
+      let currentFiles = { photos: [], certificate: null };
+      let coverPhotoId = "";
+      let uploadsInProgress = 0;
 
       const conditionLabels = { new: "Novo", used: "Usado", refurbished: "Recondicionado", scrap: "Sucata" };
       const unitLabels = { unit: "Unidade", lot: "Lote", kg: "Quilograma", meter: "Metro", square_meter: "Metro quadrado (m²)", cubic_meter: "Metro cúbico (m³)", liter: "Litro" };
@@ -187,8 +223,146 @@
         updateMaterialType();
       }
 
+      function fileUrl(file) {
+        return file.url || `/api/empresa/arquivos/${currentMaterialId}/${file.id}`;
+      }
+
+      function setUploading(change) {
+        uploadsInProgress += change;
+        addMaterialButton.disabled = uploadsInProgress > 0;
+      }
+
+      async function removeFile(file, statusElement) {
+        statusElement.textContent = "Removendo arquivo...";
+        try {
+          const response = await fetch(`/api/empresa/arquivos/${currentMaterialId}/${file.id}`, { method: "DELETE" });
+          if (!response.ok) throw new Error("Não foi possível remover o arquivo.");
+          currentFiles.photos = currentFiles.photos.filter((photo) => photo.id !== file.id);
+          if (currentFiles.certificate?.id === file.id) currentFiles.certificate = null;
+          if (coverPhotoId === file.id) coverPhotoId = currentFiles.photos[0]?.id || "";
+          statusElement.textContent = "Arquivo removido.";
+          renderFiles();
+        } catch (error) {
+          statusElement.textContent = error.message;
+        }
+      }
+
+      function createFilePreview(file, photo = false) {
+        const item = document.createElement("li");
+        item.className = "file-preview";
+        if (photo) {
+          const image = document.createElement("img");
+          image.src = fileUrl(file);
+          image.alt = "Prévia da fotografia do material";
+          item.append(image);
+        }
+        const information = document.createElement("div");
+        const name = document.createElement("div");
+        name.className = "file-preview-name";
+        name.textContent = file.name;
+        const actions = document.createElement("div");
+        actions.className = "file-preview-actions";
+        if (photo) {
+          const index = currentFiles.photos.findIndex((photoFile) => photoFile.id === file.id);
+          const moveBefore = document.createElement("button");
+          moveBefore.type = "button";
+          moveBefore.className = "secondary";
+          moveBefore.textContent = "Mover antes";
+          moveBefore.disabled = index === 0;
+          moveBefore.addEventListener("click", () => {
+            [currentFiles.photos[index - 1], currentFiles.photos[index]] = [currentFiles.photos[index], currentFiles.photos[index - 1]];
+            renderFiles();
+          });
+          const moveAfter = document.createElement("button");
+          moveAfter.type = "button";
+          moveAfter.className = "secondary";
+          moveAfter.textContent = "Mover depois";
+          moveAfter.disabled = index === currentFiles.photos.length - 1;
+          moveAfter.addEventListener("click", () => {
+            [currentFiles.photos[index], currentFiles.photos[index + 1]] = [currentFiles.photos[index + 1], currentFiles.photos[index]];
+            renderFiles();
+          });
+          const cover = document.createElement("button");
+          cover.type = "button";
+          cover.className = "secondary";
+          cover.textContent = coverPhotoId === file.id ? "Foto principal" : "Tornar principal";
+          cover.disabled = coverPhotoId === file.id;
+          cover.addEventListener("click", () => { coverPhotoId = file.id; renderFiles(); });
+          actions.append(moveBefore, moveAfter, cover);
+        }
+        const remove = document.createElement("button");
+        remove.type = "button";
+        remove.className = "danger";
+        remove.textContent = "Remover";
+        remove.addEventListener("click", () => removeFile(file, photo ? photoStatus : certificateStatus));
+        actions.append(remove);
+        information.append(name, actions);
+        item.append(information);
+        return item;
+      }
+
+      function renderFiles() {
+        photoList.replaceChildren(...currentFiles.photos.map((file) => createFilePreview(file, true)));
+        certificateList.replaceChildren(...(currentFiles.certificate ? [createFilePreview(currentFiles.certificate)] : []));
+      }
+
+      async function uploadFile(file, kind) {
+        const statusElement = kind === "photo" ? photoStatus : certificateStatus;
+        const formData = new FormData();
+        formData.set("materialId", currentMaterialId);
+        formData.set("kind", kind);
+        formData.set("file", file);
+        setUploading(1);
+        statusElement.textContent = `Enviando ${file.name}...`;
+        try {
+          const response = await fetch("/api/empresa/arquivos", { method: "POST", body: formData });
+          const result = await response.json();
+          if (!response.ok) throw new Error(result.message || "Não foi possível enviar o arquivo.");
+          if (kind === "photo") {
+            currentFiles.photos.push(result.file);
+            if (!coverPhotoId) coverPhotoId = result.file.id;
+          } else currentFiles.certificate = result.file;
+          statusElement.textContent = "Arquivo salvo com segurança.";
+          renderFiles();
+        } catch (error) {
+          statusElement.textContent = error.message;
+        } finally {
+          setUploading(-1);
+        }
+      }
+
+      async function handlePhotos(files) {
+        const available = 6 - currentFiles.photos.length;
+        if (files.length > available) photoStatus.textContent = `Você pode adicionar mais ${available} fotografia(s).`;
+        for (const file of [...files].slice(0, available)) await uploadFile(file, "photo");
+        photoInput.value = "";
+      }
+
+      async function handleCertificate(files) {
+        const file = files[0];
+        if (!file) return;
+        if (currentFiles.certificate) {
+          certificateStatus.textContent = "Remova o certificado atual antes de enviar outro.";
+          return;
+        }
+        await uploadFile(file, "certificate");
+        certificateInput.value = "";
+      }
+
+      function setupUploadZone(zone, input, handler) {
+        zone.addEventListener("click", () => input.click());
+        zone.addEventListener("keydown", (event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); input.click(); } });
+        input.addEventListener("change", () => handler(input.files));
+        zone.addEventListener("dragover", (event) => { event.preventDefault(); zone.classList.add("dragging"); });
+        zone.addEventListener("dragleave", () => zone.classList.remove("dragging"));
+        zone.addEventListener("drop", (event) => { event.preventDefault(); zone.classList.remove("dragging"); handler(event.dataTransfer.files); });
+      }
+
       function resetEditor() {
         editingId = null;
+        currentMaterialId = crypto.randomUUID();
+        currentFiles = { photos: [], certificate: null };
+        coverPhotoId = "";
         form.reset();
         addMaterialButton.textContent = "Adicionar à lista";
         cancelEditButton.hidden = true;
@@ -203,11 +377,19 @@
         toggleCustomField(otherMaterialTypeField, otherMaterialType, false);
         otherUnitField.hidden = true;
         otherUnit.required = false;
+        certificateFileField.hidden = true;
+        photoStatus.textContent = "";
+        certificateStatus.textContent = "";
+        renderFiles();
         updateCalculations();
       }
 
       function editMaterial(material) {
         editingId = material.id;
+        currentMaterialId = material.id;
+        const materialFiles = Array.isArray(material.files) ? material.files : [];
+        currentFiles = { photos: materialFiles.filter((file) => file.kind === "photo"), certificate: materialFiles.find((file) => file.kind === "certificate") || null };
+        coverPhotoId = material.coverPhotoId || currentFiles.photos[0]?.id || "";
         document.querySelector("#part-number").value = material.partNumber || material.code || "";
         document.querySelector("#manufacturer").value = material.manufacturer || "";
         document.querySelector("#description").value = material.description;
@@ -232,7 +414,9 @@
         otherUnitField.hidden = !customUnit;
         otherUnit.required = customUnit;
         otherUnit.value = material.otherUnit || "";
-        document.querySelector("#certificate").value = material.hasCertificate ? "yes" : "no";
+        certificate.value = material.hasCertificate ? "yes" : "no";
+        certificateFileField.hidden = !material.hasCertificate;
+        renderFiles();
         price.value = (material.unitPriceCents / 100).toFixed(2).replace(".", ",");
         addMaterialButton.textContent = "Salvar alterações";
         cancelEditButton.hidden = false;
@@ -381,6 +565,11 @@
       materialType.addEventListener("change", () => {
         toggleCustomField(otherMaterialTypeField, otherMaterialType, materialType.value === OTHER_CLASSIFICATION);
       });
+      certificate.addEventListener("change", () => {
+        certificateFileField.hidden = certificate.value !== "yes";
+      });
+      setupUploadZone(document.querySelector("#photo-zone"), photoInput, handlePhotos);
+      setupUploadZone(document.querySelector("#certificate-zone"), certificateInput, handleCertificate);
       quantity.addEventListener("input", updateCalculations);
       price.addEventListener("input", () => {
         price.setCustomValidity("");
@@ -394,6 +583,17 @@
 
       addMaterialButton.addEventListener("click", () => {
         if (!form.reportValidity()) return;
+        if (uploadsInProgress > 0) return;
+        if (currentFiles.photos.length === 0) {
+          photoStatus.textContent = "Adicione pelo menos uma fotografia do material.";
+          document.querySelector("#photo-zone").focus();
+          return;
+        }
+        if (certificate.value === "yes" && !currentFiles.certificate) {
+          certificateStatus.textContent = "Adicione o certificado em PDF.";
+          document.querySelector("#certificate-zone").focus();
+          return;
+        }
         const values = calculations();
         if (values.unitPrice <= 0) {
           price.setCustomValidity("Informe um preço maior que zero.");
@@ -402,13 +602,14 @@
         }
         price.setCustomValidity("");
         const material = {
-          id: editingId || crypto.randomUUID(), partNumber: document.querySelector("#part-number").value.trim(), manufacturer: document.querySelector("#manufacturer").value.trim(),
+          id: currentMaterialId, partNumber: document.querySelector("#part-number").value.trim(), manufacturer: document.querySelector("#manufacturer").value.trim(),
           description: document.querySelector("#description").value.trim(), category: category.value,
           otherCategory: otherCategory.value.trim(), subcategory: subcategory.value,
           otherSubcategory: otherSubcategory.value.trim(), materialType: materialType.value,
           otherMaterialType: otherMaterialType.value.trim(),
           condition: document.querySelector("#condition").value, quantity: Number(quantity.value), unit: unit.value, otherUnit: otherUnit.value.trim(),
-          hasCertificate: document.querySelector("#certificate").value === "yes", unitPriceCents: values.unitPrice,
+          hasCertificate: certificate.value === "yes", files: [...currentFiles.photos, ...(certificate.value === "yes" && currentFiles.certificate ? [currentFiles.certificate] : [])], coverPhotoId,
+          unitPriceCents: values.unitPrice,
           unitCommissionCents: values.unitCommission, unitNetCents: values.unitNet, totalPriceCents: values.totalPrice,
           totalCommissionCents: values.totalCommission, totalNetCents: values.totalNet,
         };
