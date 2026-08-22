@@ -21,6 +21,9 @@
       h2 { margin: 0; font-size: 1.2rem; }
       .classification, .details { margin: 9px 0 0; color: var(--muted); line-height: 1.45; }
       .price { display: block; margin-top: 14px; color: var(--text); font-size: 1.2rem; }
+      .interest { width: 100%; min-height: 48px; margin-top: 14px; padding: 11px; border: 1px solid #555b63; border-radius: 10px; background: var(--silver); color: #121519; font: inherit; font-weight: 750; cursor: pointer; }
+      .block-message { margin: 10px 0 0; padding: 10px; border: 1px solid var(--line); border-radius: 9px; color: var(--muted); line-height: 1.45; }
+      .block-message a { color: var(--silver); }
       .back { display: block; width: fit-content; margin: 24px auto 0; color: var(--silver); text-underline-offset: 4px; }
       @media (min-width: 700px) { main { padding-top: 48px; } .list { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
     </style>
@@ -66,11 +69,38 @@
         const details = document.createElement("p");
         details.className = "details";
         const unit = advertisement.unit === "other" ? advertisement.otherUnit : unitLabels[advertisement.unit];
-        details.textContent = `${conditionLabels[advertisement.condition]} · ${advertisement.quantity} ${unit} · ${advertisement.hasCertificate ? "Possui certificado" : "Sem certificado"}`;
+        details.textContent = `${conditionLabels[advertisement.condition]} · ${advertisement.quantity} ${unit}`;
         const price = document.createElement("strong");
         price.className = "price";
-        price.textContent = `US$ ${americanNumber.format(advertisement.unitPriceCents / 100)}`;
-        content.append(title, classification, details, price);
+        price.textContent = Number.isInteger(advertisement.unitPriceCents)
+          ? `US$ ${americanNumber.format(advertisement.unitPriceCents / 100)}`
+          : "Preço disponível para empresas cadastradas.";
+        if (advertisement.eligibility.allowed && advertisement.hasCertificate) details.textContent += " · Possui certificado";
+        const interest = document.createElement("button");
+        interest.className = "interest";
+        interest.type = "button";
+        interest.textContent = "Tenho interesse";
+        const blockMessage = document.createElement("p");
+        blockMessage.className = "block-message";
+        blockMessage.hidden = true;
+        interest.addEventListener("click", () => {
+          blockMessage.replaceChildren();
+          blockMessage.append(document.createTextNode(advertisement.eligibility.message));
+          if (advertisement.eligibility.code === "not_registered") {
+            const links = document.createElement("span");
+            const login = document.createElement("a");
+            login.href = "/login-empresa?next=/anuncios";
+            login.textContent = "Entrar";
+            const register = document.createElement("a");
+            register.href = "/cadastro";
+            register.textContent = "Cadastrar empresa";
+            links.append(document.createElement("br"), login, document.createTextNode(" ou "), register);
+            blockMessage.append(links);
+          }
+          if (advertisement.eligibility.allowed) blockMessage.textContent = "Sua empresa está autorizada. O formulário para registrar o interesse será conectado na próxima etapa.";
+          blockMessage.hidden = false;
+        });
+        content.append(title, classification, details, price, interest, blockMessage);
         item.append(content);
         return item;
       }

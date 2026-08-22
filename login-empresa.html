@@ -69,7 +69,7 @@
           const result = await response.json();
           if (!response.ok) throw new Error(result.message || "E-mail ou senha incorretos.");
           const next = new URLSearchParams(location.search).get("next");
-          const companyNext = next?.startsWith("/empresa") && !next.startsWith("//");
+          const companyNext = (next?.startsWith("/empresa") || next?.startsWith("/anuncios")) && !next.startsWith("//");
           location.href = companyNext ? next : result.destination;
         } catch (error) {
           status.textContent = error.message;
