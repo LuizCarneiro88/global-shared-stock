@@ -9,20 +9,25 @@
       :root { color-scheme: dark; --background: #080a0c; --surface: #111418; --surface-light: #181c21; --text: #f4f5f6; --muted: #a9afb7; --silver: #c5c9ce; --line: #343940; --success: #acd2b1; }
       * { box-sizing: border-box; }
       html { background: var(--background); }
-      body { min-width: 320px; min-height: 100vh; margin: 0; background: radial-gradient(circle at 50% -15%, #222830 0, var(--background) 38%); color: var(--text); font-family: Inter, ui-sans-serif, system-ui, sans-serif; }
+      body { position: relative; isolation: isolate; min-width: 320px; min-height: 100vh; margin: 0; overflow-x: hidden; background: var(--background); color: var(--text); font-family: Inter, ui-sans-serif, system-ui, sans-serif; }
+      body::before { position: fixed; z-index: -2; inset: 0; content: ""; background: url("assets/global-shared-stock-background.png") center 70px / cover no-repeat; opacity: .3; pointer-events: none; }
+      body::after { position: fixed; z-index: -1; inset: 0; content: ""; background: linear-gradient(180deg, rgb(8 10 12 / 22%) 0, rgb(8 10 12 / 76%) 520px, var(--background) 1050px), radial-gradient(circle at 50% 180px, transparent, rgb(8 10 12 / 42%) 70%); pointer-events: none; }
       button, input, select { font: inherit; }
       button, select { cursor: pointer; }
-      .site-header { position: sticky; z-index: 20; top: 0; border-bottom: 1px solid rgb(52 57 64 / 70%); background: rgb(8 10 12 / 92%); backdrop-filter: blur(14px); }
-      .header-content { display: flex; width: min(100% - 24px, 1180px); min-height: 64px; margin: auto; align-items: center; justify-content: space-between; gap: 16px; }
-      .brand { color: var(--silver); font-size: .78rem; font-weight: 850; letter-spacing: .13em; text-decoration: none; text-transform: uppercase; }
+      .site-header { position: sticky; z-index: 20; top: 0; border-bottom: 1px solid rgb(116 123 132 / 32%); background: linear-gradient(90deg, rgb(8 10 12 / 96%), rgb(18 22 27 / 90%), rgb(8 10 12 / 96%)); box-shadow: 0 12px 35px rgb(0 0 0 / 24%); backdrop-filter: blur(16px); }
+      .header-content { display: flex; width: min(100% - 24px, 1180px); min-height: 78px; margin: auto; align-items: center; justify-content: space-between; gap: 16px; }
+      .brand { color: var(--text); font-size: clamp(1rem, 3.3vw, 1.45rem); font-weight: 900; letter-spacing: .15em; line-height: 1; text-decoration: none; text-shadow: 0 2px 20px rgb(255 255 255 / 12%); text-transform: uppercase; }
       .company-access { color: var(--muted); font-size: .82rem; text-underline-offset: 4px; }
-      main { width: min(100% - 24px, 1180px); margin: auto; padding: 30px 0 60px; }
-      .hero { max-width: 780px; margin-bottom: 24px; }
+      main { width: min(100% - 24px, 1180px); margin: auto; padding: 28px 0 60px; }
+      .hero { position: relative; display: flex; min-height: 330px; margin-bottom: 22px; padding: 28px 20px; flex-direction: column; justify-content: center; overflow: hidden; border: 1px solid rgb(135 142 151 / 35%); border-radius: 22px; background: rgb(10 13 16 / 70%); box-shadow: 0 28px 80px rgb(0 0 0 / 34%), inset 0 1px rgb(255 255 255 / 6%); }
+      .hero::before { position: absolute; inset: 0; content: ""; background: url("assets/global-shared-stock-background.png") center 48% / cover no-repeat; opacity: .75; }
+      .hero::after { position: absolute; inset: 0; content: ""; background: linear-gradient(90deg, rgb(7 9 11 / 97%) 0, rgb(7 9 11 / 78%) 48%, rgb(7 9 11 / 28%) 100%), linear-gradient(0deg, rgb(7 9 11 / 55%), transparent 55%); }
+      .hero > * { position: relative; z-index: 1; max-width: 690px; }
       .eyebrow { margin: 0 0 10px; color: var(--silver); font-size: .72rem; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; }
-      h1 { max-width: 720px; margin: 0; font-size: clamp(2.25rem, 9vw, 4.6rem); line-height: 1; letter-spacing: -.05em; text-wrap: balance; }
+      h1 { max-width: 720px; margin: 0; font-size: clamp(2.25rem, 8vw, 4.45rem); line-height: 1; letter-spacing: -.05em; text-shadow: 0 5px 28px rgb(0 0 0 / 70%); text-wrap: balance; }
       .introduction { margin: 16px 0 0; color: var(--muted); line-height: 1.6; }
-      .search-panel { position: relative; display: flex; gap: 8px; margin: 24px 0 18px; }
-      .search { width: 100%; min-height: 56px; padding: 13px 48px 13px 16px; border: 1px solid #565c65; border-radius: 14px; background: var(--surface); color: var(--text); font-size: 1rem; }
+      .search-panel { position: relative; display: flex; gap: 8px; margin: 0 0 18px; padding: 10px; border: 1px solid rgb(102 109 118 / 42%); border-radius: 17px; background: rgb(13 16 20 / 88%); box-shadow: 0 18px 50px rgb(0 0 0 / 24%), inset 0 1px rgb(255 255 255 / 5%); backdrop-filter: blur(12px); }
+      .search { width: 100%; min-height: 56px; padding: 13px 48px 13px 16px; border: 1px solid #5d646d; border-radius: 12px; background: rgb(22 26 31 / 92%); color: var(--text); font-size: 1rem; }
       .search:focus, select:focus, input:focus { outline: 3px solid rgb(197 201 206 / 16%); border-color: var(--silver); }
       .clear-search { position: absolute; top: 9px; right: 82px; min-width: 38px; min-height: 38px; border: 0; background: transparent; color: var(--muted); font-size: 1.2rem; }
       .clear-search[hidden] { display: none; }
@@ -34,7 +39,7 @@
       .active-filters { display: flex; flex-wrap: wrap; gap: 7px; margin: 0 0 16px; padding: 0; list-style: none; }
       .filter-chip { min-height: 34px; padding: 6px 10px; border: 1px solid #555b63; border-radius: 999px; background: var(--surface-light); color: var(--silver); font-size: .76rem; }
       .catalog { display: grid; gap: 18px; }
-      .filters { position: fixed; z-index: 40; inset: auto 0 0; max-height: 88vh; padding: 20px 16px calc(20px + env(safe-area-inset-bottom)); border: 1px solid var(--line); border-radius: 20px 20px 0 0; background: #111418; box-shadow: 0 -20px 70px rgb(0 0 0 / 55%); overflow-y: auto; visibility: hidden; transform: translateY(105%); transition: transform .22s ease, visibility .22s; }
+      .filters { position: fixed; z-index: 40; inset: auto 0 0; max-height: 88vh; padding: 20px 16px calc(20px + env(safe-area-inset-bottom)); border: 1px solid #454b53; border-radius: 20px 20px 0 0; background: linear-gradient(rgb(15 18 22 / 94%), rgb(15 18 22 / 98%)), url("assets/global-shared-stock-background.png") left center / auto 620px no-repeat; box-shadow: 0 -20px 70px rgb(0 0 0 / 65%); overflow-y: auto; visibility: hidden; transform: translateY(105%); transition: transform .22s ease, visibility .22s; }
       .filters.open { visibility: visible; transform: translateY(0); }
       .filter-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
       .filter-header h2 { margin: 0; font-size: 1.25rem; }
@@ -49,7 +54,7 @@
       .overlay { position: fixed; z-index: 30; inset: 0; background: rgb(0 0 0 / 62%); }
       .overlay[hidden] { display: none; }
       .list { display: grid; gap: 14px; margin: 0; padding: 0; list-style: none; }
-      .card { min-width: 0; overflow: hidden; border: 1px solid var(--line); border-radius: 17px; background: linear-gradient(155deg, #15191e, #101317); box-shadow: 0 16px 40px rgb(0 0 0 / 16%); }
+      .card { min-width: 0; overflow: hidden; border: 1px solid rgb(91 98 107 / 52%); border-radius: 17px; background: linear-gradient(155deg, rgb(24 29 35 / 96%), rgb(13 16 20 / 98%)); box-shadow: 0 18px 48px rgb(0 0 0 / 28%), inset 0 1px rgb(255 255 255 / 4%); transition: border-color .2s ease, transform .2s ease, box-shadow .2s ease; }
       .photo-wrap { position: relative; background: var(--surface-light); }
       .card img { display: block; width: 100%; aspect-ratio: 16 / 10; object-fit: cover; }
       .availability { position: absolute; top: 11px; left: 11px; padding: 6px 9px; border: 1px solid rgb(172 210 177 / 45%); border-radius: 999px; background: rgb(10 16 12 / 88%); color: var(--success); font-size: .7rem; font-weight: 800; }
@@ -66,15 +71,26 @@
       .load-more[hidden], .empty[hidden] { display: none; }
       .back { display: block; width: fit-content; margin: 28px auto 0; color: var(--silver); font-size: .86rem; text-underline-offset: 4px; }
       @media (min-width: 760px) {
-        main { padding-top: 46px; }
+        main { padding-top: 34px; }
         .filter-toggle, .close-filters, .overlay, .filter-actions { display: none; }
         .catalog { grid-template-columns: 250px minmax(0, 1fr); align-items: start; }
-        .filters { position: sticky; z-index: auto; top: 86px; max-height: calc(100vh - 105px); padding: 17px; border-radius: 15px; box-shadow: none; visibility: visible; transform: none; }
+        .filters { position: sticky; z-index: auto; top: 98px; max-height: calc(100vh - 120px); padding: 17px; border-radius: 15px; box-shadow: 0 18px 50px rgb(0 0 0 / 25%); visibility: visible; transform: none; }
         .list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
         .clear-search { right: 10px; }
         .search { padding-right: 48px; }
+        .hero { min-height: 390px; padding: 42px; }
+        .card:hover { border-color: #747b84; box-shadow: 0 24px 65px rgb(0 0 0 / 38%); transform: translateY(-3px); }
       }
       @media (min-width: 1080px) { .list { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+      @media (max-width: 520px) {
+        body::before { background-position: center 78px; background-size: auto 720px; opacity: .24; }
+        .header-content { min-height: 72px; }
+        .brand { max-width: 210px; line-height: 1.15; }
+        .company-access { max-width: 90px; text-align: right; }
+        .hero { min-height: 350px; padding: 24px 18px; }
+        .hero::before { background-position: 50% center; background-size: auto 470px; }
+        .hero::after { background: linear-gradient(90deg, rgb(7 9 11 / 96%), rgb(7 9 11 / 62%)), linear-gradient(0deg, rgb(7 9 11 / 62%), transparent); }
+      }
     </style>
   </head>
   <body>
