@@ -3,123 +3,311 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="Materiais disponíveis na Global Shared Stock." />
+    <meta name="description" content="Pesquise materiais industriais disponíveis na Global Shared Stock." />
     <title>Pesquisar materiais | Global Shared Stock</title>
     <style>
-      :root { color-scheme: dark; --background: #090b0d; --surface: #111418; --surface-light: #171b20; --text: #f4f5f6; --muted: #a9afb7; --silver: #c5c9ce; --line: #343940; }
+      :root { color-scheme: dark; --background: #080a0c; --surface: #111418; --surface-light: #181c21; --text: #f4f5f6; --muted: #a9afb7; --silver: #c5c9ce; --line: #343940; --success: #acd2b1; }
       * { box-sizing: border-box; }
-      body { min-width: 320px; min-height: 100vh; margin: 0; background: var(--background); color: var(--text); font-family: Inter, ui-sans-serif, system-ui, sans-serif; }
-      main { width: min(100% - 24px, 1000px); margin: 0 auto; padding: 28px 0 56px; }
-      .brand { margin: 0 0 20px; color: var(--silver); font-weight: 800; letter-spacing: .14em; text-transform: uppercase; }
-      h1 { margin: 0; font-size: clamp(2.2rem, 10vw, 4rem); }
-      .introduction { color: var(--muted); line-height: 1.5; }
-      .search { width: 100%; min-height: 52px; margin: 18px 0; padding: 12px 14px; border: 1px solid #555b63; border-radius: 12px; background: var(--surface); color: var(--text); font: inherit; }
+      html { background: var(--background); }
+      body { min-width: 320px; min-height: 100vh; margin: 0; background: radial-gradient(circle at 50% -15%, #222830 0, var(--background) 38%); color: var(--text); font-family: Inter, ui-sans-serif, system-ui, sans-serif; }
+      button, input, select { font: inherit; }
+      button, select { cursor: pointer; }
+      .site-header { position: sticky; z-index: 20; top: 0; border-bottom: 1px solid rgb(52 57 64 / 70%); background: rgb(8 10 12 / 92%); backdrop-filter: blur(14px); }
+      .header-content { display: flex; width: min(100% - 24px, 1180px); min-height: 64px; margin: auto; align-items: center; justify-content: space-between; gap: 16px; }
+      .brand { color: var(--silver); font-size: .78rem; font-weight: 850; letter-spacing: .13em; text-decoration: none; text-transform: uppercase; }
+      .company-access { color: var(--muted); font-size: .82rem; text-underline-offset: 4px; }
+      main { width: min(100% - 24px, 1180px); margin: auto; padding: 30px 0 60px; }
+      .hero { max-width: 780px; margin-bottom: 24px; }
+      .eyebrow { margin: 0 0 10px; color: var(--silver); font-size: .72rem; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; }
+      h1 { max-width: 720px; margin: 0; font-size: clamp(2.25rem, 9vw, 4.6rem); line-height: 1; letter-spacing: -.05em; text-wrap: balance; }
+      .introduction { margin: 16px 0 0; color: var(--muted); line-height: 1.6; }
+      .search-panel { position: relative; display: flex; gap: 8px; margin: 24px 0 18px; }
+      .search { width: 100%; min-height: 56px; padding: 13px 48px 13px 16px; border: 1px solid #565c65; border-radius: 14px; background: var(--surface); color: var(--text); font-size: 1rem; }
+      .search:focus, select:focus, input:focus { outline: 3px solid rgb(197 201 206 / 16%); border-color: var(--silver); }
+      .clear-search { position: absolute; top: 9px; right: 82px; min-width: 38px; min-height: 38px; border: 0; background: transparent; color: var(--muted); font-size: 1.2rem; }
+      .clear-search[hidden] { display: none; }
+      .filter-toggle { min-width: 70px; min-height: 56px; padding: 10px; border: 1px solid #565c65; border-radius: 14px; background: var(--surface-light); color: var(--text); font-weight: 750; }
+      .filter-count { display: inline-grid; min-width: 20px; height: 20px; margin-left: 3px; place-items: center; border-radius: 999px; background: var(--silver); color: #101317; font-size: .7rem; }
+      .results-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 14px; }
+      .results-count { margin: 0; color: var(--muted); font-size: .88rem; }
+      .sort { min-height: 42px; padding: 8px 34px 8px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); color: var(--text); }
+      .active-filters { display: flex; flex-wrap: wrap; gap: 7px; margin: 0 0 16px; padding: 0; list-style: none; }
+      .filter-chip { min-height: 34px; padding: 6px 10px; border: 1px solid #555b63; border-radius: 999px; background: var(--surface-light); color: var(--silver); font-size: .76rem; }
+      .catalog { display: grid; gap: 18px; }
+      .filters { position: fixed; z-index: 40; inset: auto 0 0; max-height: 88vh; padding: 20px 16px calc(20px + env(safe-area-inset-bottom)); border: 1px solid var(--line); border-radius: 20px 20px 0 0; background: #111418; box-shadow: 0 -20px 70px rgb(0 0 0 / 55%); overflow-y: auto; visibility: hidden; transform: translateY(105%); transition: transform .22s ease, visibility .22s; }
+      .filters.open { visibility: visible; transform: translateY(0); }
+      .filter-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
+      .filter-header h2 { margin: 0; font-size: 1.25rem; }
+      .close-filters { min-width: 42px; min-height: 42px; border: 1px solid var(--line); border-radius: 10px; background: transparent; color: var(--text); }
+      .filter-fields { display: grid; gap: 15px; }
+      .filter-field label { display: block; margin-bottom: 7px; font-size: .82rem; font-weight: 750; }
+      .filter-field select, .filter-field input { width: 100%; min-height: 47px; padding: 10px 12px; border: 1px solid #50565e; border-radius: 10px; background: var(--surface-light); color: var(--text); }
+      .filter-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; margin-top: 20px; }
+      .filter-actions button { min-height: 48px; border: 1px solid #555b63; border-radius: 10px; font-weight: 750; }
+      .clear-filters { background: transparent; color: var(--text); }
+      .apply-filters { background: var(--silver); color: #101317; }
+      .overlay { position: fixed; z-index: 30; inset: 0; background: rgb(0 0 0 / 62%); }
+      .overlay[hidden] { display: none; }
       .list { display: grid; gap: 14px; margin: 0; padding: 0; list-style: none; }
-      .card { overflow: hidden; border: 1px solid var(--line); border-radius: 16px; background: var(--surface); }
-      .card img { display: block; width: 100%; aspect-ratio: 16 / 10; object-fit: cover; background: var(--surface-light); }
-      .content { padding: 17px; }
-      h2 { margin: 0; font-size: 1.2rem; }
-      .classification, .details { margin: 9px 0 0; color: var(--muted); line-height: 1.45; }
-      .price { display: block; margin-top: 14px; color: var(--text); font-size: 1.2rem; }
-      .interest { width: 100%; min-height: 48px; margin-top: 14px; padding: 11px; border: 1px solid #555b63; border-radius: 10px; background: var(--silver); color: #121519; font: inherit; font-weight: 750; cursor: pointer; }
-      .block-message { margin: 10px 0 0; padding: 10px; border: 1px solid var(--line); border-radius: 9px; color: var(--muted); line-height: 1.45; }
+      .card { min-width: 0; overflow: hidden; border: 1px solid var(--line); border-radius: 17px; background: linear-gradient(155deg, #15191e, #101317); box-shadow: 0 16px 40px rgb(0 0 0 / 16%); }
+      .photo-wrap { position: relative; background: var(--surface-light); }
+      .card img { display: block; width: 100%; aspect-ratio: 16 / 10; object-fit: cover; }
+      .availability { position: absolute; top: 11px; left: 11px; padding: 6px 9px; border: 1px solid rgb(172 210 177 / 45%); border-radius: 999px; background: rgb(10 16 12 / 88%); color: var(--success); font-size: .7rem; font-weight: 800; }
+      .card-content { padding: 17px; }
+      .category { margin: 0 0 7px; color: var(--silver); font-size: .7rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+      .card h2 { display: -webkit-box; margin: 0; font-size: 1.18rem; line-height: 1.25; overflow: hidden; overflow-wrap: anywhere; -webkit-box-orient: vertical; -webkit-line-clamp: 3; }
+      .identification, .details { margin: 8px 0 0; color: var(--muted); font-size: .84rem; line-height: 1.5; }
+      .price { display: block; margin-top: 15px; color: var(--text); font-size: 1.15rem; }
+      .interest { width: 100%; min-height: 48px; margin-top: 14px; padding: 11px; border: 1px solid #656b73; border-radius: 10px; background: var(--silver); color: #101317; font-weight: 800; cursor: pointer; }
+      .block-message { margin: 10px 0 0; padding: 10px; border: 1px solid var(--line); border-radius: 9px; color: var(--muted); font-size: .83rem; line-height: 1.45; }
       .block-message a { color: var(--silver); }
-      .back { display: block; width: fit-content; margin: 24px auto 0; color: var(--silver); text-underline-offset: 4px; }
-      @media (min-width: 700px) { main { padding-top: 48px; } .list { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+      .empty { padding: 34px 20px; border: 1px dashed #4c525a; border-radius: 16px; color: var(--muted); text-align: center; }
+      .load-more { width: 100%; min-height: 50px; margin-top: 16px; border: 1px solid #555b63; border-radius: 11px; background: transparent; color: var(--text); font-weight: 750; }
+      .load-more[hidden], .empty[hidden] { display: none; }
+      .back { display: block; width: fit-content; margin: 28px auto 0; color: var(--silver); font-size: .86rem; text-underline-offset: 4px; }
+      @media (min-width: 760px) {
+        main { padding-top: 46px; }
+        .filter-toggle, .close-filters, .overlay, .filter-actions { display: none; }
+        .catalog { grid-template-columns: 250px minmax(0, 1fr); align-items: start; }
+        .filters { position: sticky; z-index: auto; top: 86px; max-height: calc(100vh - 105px); padding: 17px; border-radius: 15px; box-shadow: none; visibility: visible; transform: none; }
+        .list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .clear-search { right: 10px; }
+        .search { padding-right: 48px; }
+      }
+      @media (min-width: 1080px) { .list { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
     </style>
   </head>
   <body>
+    <header class="site-header">
+      <div class="header-content">
+        <a class="brand" href="index.html">Global Shared Stock</a>
+        <a class="company-access" href="login-empresa.html">Acesso da empresa</a>
+      </div>
+    </header>
     <main>
-      <p class="brand">Global Shared Stock</p>
-      <h1>Pesquisar materiais</h1>
-      <p class="introduction">Consulte os materiais aprovados e disponíveis na plataforma.</p>
-      <input id="search" class="search" type="search" placeholder="Busque por descrição, part number, fabricante ou categoria" aria-label="Pesquisar materiais" />
-      <p id="empty" class="introduction">Carregando anúncios...</p>
-      <ul id="list" class="list"></ul>
+      <section class="hero">
+        <p class="eyebrow">Estoque industrial compartilhado</p>
+        <h1>Encontre o material que a sua operação precisa.</h1>
+        <p class="introduction">Pesquise anúncios aprovados sem revelar a identidade das empresas vendedoras.</p>
+      </section>
+
+      <div class="search-panel">
+        <input id="search" class="search" type="search" placeholder="Part number, descrição, fabricante ou categoria" aria-label="Pesquisar materiais" autocomplete="off" />
+        <button id="clear-search" class="clear-search" type="button" aria-label="Limpar pesquisa" hidden>×</button>
+        <button id="filter-toggle" class="filter-toggle" type="button" aria-controls="filters" aria-expanded="false">Filtros <span id="filter-count" class="filter-count" hidden>0</span></button>
+      </div>
+
+      <div class="results-bar">
+        <p id="results-count" class="results-count">Carregando materiais...</p>
+        <select id="sort" class="sort" aria-label="Ordenar resultados">
+          <option value="newest">Mais recentes</option>
+          <option value="description">Descrição: A–Z</option>
+          <option value="quantity">Maior quantidade</option>
+        </select>
+      </div>
+      <ul id="active-filters" class="active-filters"></ul>
+
+      <div class="catalog">
+        <aside id="filters" class="filters" aria-label="Filtros da pesquisa">
+          <div class="filter-header"><h2>Filtrar materiais</h2><button id="close-filters" class="close-filters" type="button" aria-label="Fechar filtros">×</button></div>
+          <div class="filter-fields">
+            <div class="filter-field"><label for="category">Categoria</label><select id="category"><option value="">Todas</option></select></div>
+            <div class="filter-field"><label for="subcategory">Subcategoria</label><select id="subcategory" disabled><option value="">Todas</option></select></div>
+            <div class="filter-field"><label for="condition">Condição</label><select id="condition"><option value="">Todas</option><option value="new">Novo</option><option value="used">Usado</option><option value="refurbished">Recondicionado</option><option value="scrap">Sucata</option></select></div>
+            <div class="filter-field"><label for="manufacturer">Fabricante</label><select id="manufacturer"><option value="">Todos</option></select></div>
+            <div class="filter-field"><label for="unit">Unidade de medida</label><select id="unit"><option value="">Todas</option></select></div>
+            <div class="filter-field"><label for="minimum-quantity">Quantidade mínima</label><input id="minimum-quantity" type="number" inputmode="decimal" min="0" step="0.001" placeholder="0" /></div>
+          </div>
+          <div class="filter-actions"><button id="clear-filters" class="clear-filters" type="button">Limpar</button><button id="apply-filters" class="apply-filters" type="button">Ver resultados</button></div>
+        </aside>
+
+        <section aria-live="polite">
+          <p id="empty" class="empty">Carregando anúncios...</p>
+          <ul id="list" class="list"></ul>
+          <button id="load-more" class="load-more" type="button" hidden>Carregar mais materiais</button>
+        </section>
+      </div>
       <a class="back" href="index.html">Voltar ao início</a>
     </main>
-    <script>
-      const list = document.querySelector("#list");
-      const empty = document.querySelector("#empty");
-      const search = document.querySelector("#search");
-      const americanNumber = new Intl.NumberFormat("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-      const conditionLabels = { new: "Novo", used: "Usado", refurbished: "Recondicionado", scrap: "Sucata" };
-      const unitLabels = { unit: "Unidade", lot: "Lote", kg: "Quilograma", meter: "Metro", square_meter: "Metro quadrado (m²)", cubic_meter: "Metro cúbico (m³)", liter: "Litro" };
-      let advertisements = [];
+    <button id="overlay" class="overlay" type="button" aria-label="Fechar filtros" hidden></button>
 
-      function card(advertisement) {
+    <script>
+      const elements = {
+        list: document.querySelector("#list"), empty: document.querySelector("#empty"), search: document.querySelector("#search"),
+        clearSearch: document.querySelector("#clear-search"), resultsCount: document.querySelector("#results-count"), sort: document.querySelector("#sort"),
+        filters: document.querySelector("#filters"), filterToggle: document.querySelector("#filter-toggle"), closeFilters: document.querySelector("#close-filters"),
+        overlay: document.querySelector("#overlay"), filterCount: document.querySelector("#filter-count"), activeFilters: document.querySelector("#active-filters"),
+        category: document.querySelector("#category"), subcategory: document.querySelector("#subcategory"), condition: document.querySelector("#condition"),
+        manufacturer: document.querySelector("#manufacturer"), unit: document.querySelector("#unit"), minimumQuantity: document.querySelector("#minimum-quantity"),
+        clearFilters: document.querySelector("#clear-filters"), applyFilters: document.querySelector("#apply-filters"), loadMore: document.querySelector("#load-more"),
+      };
+      const americanNumber = new Intl.NumberFormat("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      const quantityNumber = new Intl.NumberFormat("en-US", { maximumFractionDigits: 3 });
+      const conditionLabels = { new: "Novo", used: "Usado", refurbished: "Recondicionado", scrap: "Sucata" };
+      const unitLabels = { unit: "Unidade", lot: "Lote", kg: "Quilograma", meter: "Metro", square_meter: "Metro quadrado (m²)", cubic_meter: "Metro cúbico (m³)", liter: "Litro", other: "Outra" };
+      const PAGE_SIZE = 12;
+      let advertisements = [];
+      let filteredAdvertisements = [];
+      let visibleCount = PAGE_SIZE;
+
+      function normalized(value) { return String(value || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("pt-BR"); }
+      function categoryValue(advertisement) { return advertisement.category === "Outro" ? advertisement.otherCategory : advertisement.category; }
+      function subcategoryValue(advertisement) { return advertisement.subcategory === "Outro" ? advertisement.otherSubcategory : advertisement.subcategory; }
+      function unique(values) { return [...new Set(values.filter(Boolean))].sort((a, b) => a.localeCompare(b, "pt-BR")); }
+      function fillSelect(select, values, firstLabel) {
+        const selected = select.value;
+        select.replaceChildren(new Option(firstLabel, ""), ...values.map((value) => new Option(value, value)));
+        if ([...select.options].some((option) => option.value === selected)) select.value = selected;
+      }
+
+      function updateFilterOptions() {
+        fillSelect(elements.category, unique(advertisements.map(categoryValue)), "Todas");
+        const categoryAds = elements.category.value ? advertisements.filter((ad) => categoryValue(ad) === elements.category.value) : advertisements;
+        fillSelect(elements.subcategory, unique(categoryAds.map(subcategoryValue)), "Todas");
+        elements.subcategory.disabled = !elements.category.value || elements.subcategory.options.length === 1;
+        fillSelect(elements.manufacturer, unique(advertisements.map((ad) => ad.manufacturer)), "Todos");
+        fillSelect(elements.unit, unique(advertisements.map((ad) => ad.unit === "other" ? ad.otherUnit : unitLabels[ad.unit])), "Todas");
+      }
+
+      function createCard(advertisement) {
         const item = document.createElement("li");
         item.className = "card";
+        const photoWrap = document.createElement("div");
+        photoWrap.className = "photo-wrap";
         const cover = advertisement.photos.find((photo) => photo.id === advertisement.coverPhotoId) || advertisement.photos[0];
-        if (cover) {
-          const image = document.createElement("img");
-          image.src = cover.url;
-          image.alt = "Fotografia do material anunciado";
-          item.append(image);
-        }
+        if (cover) { const image = document.createElement("img"); image.src = cover.url; image.alt = "Fotografia do material anunciado"; image.loading = "lazy"; photoWrap.append(image); }
+        const availability = document.createElement("span");
+        availability.className = "availability";
+        availability.textContent = "Disponível";
+        photoWrap.append(availability);
+
         const content = document.createElement("div");
-        content.className = "content";
+        content.className = "card-content";
+        const category = document.createElement("p");
+        category.className = "category";
+        category.textContent = [categoryValue(advertisement), subcategoryValue(advertisement)].filter(Boolean).join(" · ");
         const title = document.createElement("h2");
         title.textContent = advertisement.description;
-        const category = advertisement.category === "Outro" ? advertisement.otherCategory : advertisement.category;
-        const subcategory = advertisement.subcategory === "Outro" ? advertisement.otherSubcategory : advertisement.subcategory;
-        const classification = document.createElement("p");
-        classification.className = "classification";
-        classification.textContent = [category, subcategory].filter(Boolean).join(" › ");
+        const identification = document.createElement("p");
+        identification.className = "identification";
+        identification.textContent = [advertisement.partNumber && `Part number: ${advertisement.partNumber}`, advertisement.manufacturer && `Fabricante: ${advertisement.manufacturer}`].filter(Boolean).join(" · ") || "Identificação não informada";
         const details = document.createElement("p");
         details.className = "details";
         const unit = advertisement.unit === "other" ? advertisement.otherUnit : unitLabels[advertisement.unit];
-        details.textContent = `${conditionLabels[advertisement.condition]} · ${advertisement.quantity} ${unit}`;
+        details.textContent = `${conditionLabels[advertisement.condition]} · ${quantityNumber.format(advertisement.quantity)} ${unit}`;
+        if (advertisement.eligibility.allowed && advertisement.hasCertificate) details.textContent += " · Possui certificado";
         const price = document.createElement("strong");
         price.className = "price";
-        price.textContent = Number.isInteger(advertisement.unitPriceCents)
-          ? `US$ ${americanNumber.format(advertisement.unitPriceCents / 100)}`
-          : "Preço disponível para empresas cadastradas.";
-        if (advertisement.eligibility.allowed && advertisement.hasCertificate) details.textContent += " · Possui certificado";
+        price.textContent = Number.isInteger(advertisement.unitPriceCents) ? `US$ ${americanNumber.format(advertisement.unitPriceCents / 100)}` : "Preço disponível para empresas cadastradas.";
         const interest = document.createElement("button");
         interest.className = "interest";
         interest.type = "button";
         interest.textContent = "Tenho interesse";
-        const blockMessage = document.createElement("p");
-        blockMessage.className = "block-message";
-        blockMessage.hidden = true;
-        interest.addEventListener("click", () => {
-          blockMessage.replaceChildren();
-          blockMessage.append(document.createTextNode(advertisement.eligibility.message));
-          if (advertisement.eligibility.code === "not_registered") {
-            const links = document.createElement("span");
-            const login = document.createElement("a");
-            login.href = "/login-empresa?next=/anuncios";
-            login.textContent = "Entrar";
-            const register = document.createElement("a");
-            register.href = "/cadastro";
-            register.textContent = "Cadastrar empresa";
-            links.append(document.createElement("br"), login, document.createTextNode(" ou "), register);
-            blockMessage.append(links);
-          }
-          if (advertisement.eligibility.allowed) blockMessage.textContent = "Sua empresa está autorizada. O formulário para registrar o interesse será conectado na próxima etapa.";
-          blockMessage.hidden = false;
-        });
-        content.append(title, classification, details, price, interest, blockMessage);
-        item.append(content);
+        const message = document.createElement("p");
+        message.className = "block-message";
+        message.hidden = true;
+        interest.addEventListener("click", () => showEligibility(advertisement, message));
+        content.append(category, title, identification, details, price, interest, message);
+        item.append(photoWrap, content);
         return item;
       }
 
-      function render() {
-        const term = search.value.trim().toLocaleLowerCase("pt-BR");
-        const filtered = advertisements.filter((advertisement) => [advertisement.description, advertisement.partNumber, advertisement.manufacturer, advertisement.category, advertisement.subcategory].filter(Boolean).join(" ").toLocaleLowerCase("pt-BR").includes(term));
-        list.replaceChildren(...filtered.map(card));
-        empty.textContent = filtered.length ? "" : "Nenhum material encontrado.";
-        empty.hidden = filtered.length > 0;
+      function showEligibility(advertisement, message) {
+        message.replaceChildren(document.createTextNode(advertisement.eligibility.message));
+        if (advertisement.eligibility.code === "not_registered") {
+          const login = document.createElement("a"); login.href = `/login-empresa?next=${encodeURIComponent(location.pathname + location.search)}`; login.textContent = "Entrar";
+          const register = document.createElement("a"); register.href = "/cadastro"; register.textContent = "Cadastrar empresa";
+          message.append(document.createElement("br"), login, document.createTextNode(" ou "), register);
+        }
+        if (advertisement.eligibility.allowed) message.textContent = "Sua empresa está autorizada. O formulário para registrar o interesse será conectado na próxima etapa.";
+        message.hidden = false;
       }
 
-      search.addEventListener("input", render);
+      function currentFilters() {
+        return { q: elements.search.value.trim(), category: elements.category.value, subcategory: elements.subcategory.value, condition: elements.condition.value, manufacturer: elements.manufacturer.value, unit: elements.unit.value, minimum: Number(elements.minimumQuantity.value) || 0 };
+      }
+
+      function render() {
+        const filters = currentFilters();
+        const term = normalized(filters.q);
+        filteredAdvertisements = advertisements.filter((ad) => {
+          const searchable = normalized([ad.description, ad.partNumber, ad.manufacturer, categoryValue(ad), subcategoryValue(ad), ad.materialType, ad.otherMaterialType].filter(Boolean).join(" "));
+          const unit = ad.unit === "other" ? ad.otherUnit : unitLabels[ad.unit];
+          return (!term || searchable.includes(term)) && (!filters.category || categoryValue(ad) === filters.category) && (!filters.subcategory || subcategoryValue(ad) === filters.subcategory) && (!filters.condition || ad.condition === filters.condition) && (!filters.manufacturer || ad.manufacturer === filters.manufacturer) && (!filters.unit || unit === filters.unit) && ad.quantity >= filters.minimum;
+        });
+        if (elements.sort.value === "description") filteredAdvertisements.sort((a, b) => a.description.localeCompare(b.description, "pt-BR"));
+        else if (elements.sort.value === "quantity") filteredAdvertisements.sort((a, b) => b.quantity - a.quantity);
+        else filteredAdvertisements.sort((a, b) => b.publishedAt.localeCompare(a.publishedAt));
+        const visible = filteredAdvertisements.slice(0, visibleCount);
+        elements.list.replaceChildren(...visible.map(createCard));
+        elements.resultsCount.textContent = `${filteredAdvertisements.length} ${filteredAdvertisements.length === 1 ? "material encontrado" : "materiais encontrados"}`;
+        elements.empty.textContent = advertisements.length ? "Nenhum material corresponde aos filtros selecionados." : "Ainda não há materiais publicados.";
+        elements.empty.hidden = filteredAdvertisements.length > 0;
+        elements.loadMore.hidden = visible.length >= filteredAdvertisements.length;
+        elements.clearSearch.hidden = !filters.q;
+        renderActiveFilters(filters);
+        updateUrl(filters);
+      }
+
+      function activeEntries(filters) {
+        return [["category", "Categoria", filters.category], ["subcategory", "Subcategoria", filters.subcategory], ["condition", "Condição", conditionLabels[filters.condition]], ["manufacturer", "Fabricante", filters.manufacturer], ["unit", "Unidade", filters.unit], ["minimum", "Quantidade mínima", filters.minimum || ""]].filter((entry) => entry[2]);
+      }
+
+      function renderActiveFilters(filters) {
+        const entries = activeEntries(filters);
+        elements.activeFilters.replaceChildren(...entries.map(([key, label, value]) => {
+          const item = document.createElement("li");
+          const button = document.createElement("button");
+          button.className = "filter-chip"; button.type = "button"; button.textContent = `${label}: ${value} ×`;
+          button.addEventListener("click", () => { const target = key === "minimum" ? elements.minimumQuantity : elements[key]; target.value = ""; if (key === "category") { elements.subcategory.value = ""; updateFilterOptions(); } visibleCount = PAGE_SIZE; render(); });
+          item.append(button); return item;
+        }));
+        elements.filterCount.textContent = entries.length;
+        elements.filterCount.hidden = entries.length === 0;
+      }
+
+      function updateUrl(filters) {
+        const url = new URL(location.href);
+        [["q", filters.q], ["categoria", filters.category], ["subcategoria", filters.subcategory], ["condicao", filters.condition], ["fabricante", filters.manufacturer], ["unidade", filters.unit], ["quantidade", filters.minimum || ""]].forEach(([key, value]) => value ? url.searchParams.set(key, value) : url.searchParams.delete(key));
+        history.replaceState(null, "", `${url.pathname}${url.search}`);
+      }
+
+      function loadUrlFilters() {
+        const parameters = new URLSearchParams(location.search);
+        elements.search.value = parameters.get("q") || "";
+        elements.category.value = parameters.get("categoria") || "";
+        updateFilterOptions();
+        elements.subcategory.value = parameters.get("subcategoria") || "";
+        elements.condition.value = parameters.get("condicao") || "";
+        elements.manufacturer.value = parameters.get("fabricante") || "";
+        elements.unit.value = parameters.get("unidade") || "";
+        elements.minimumQuantity.value = parameters.get("quantidade") || "";
+      }
+
+      function openFilters() { elements.filters.classList.add("open"); elements.overlay.hidden = false; elements.filterToggle.setAttribute("aria-expanded", "true"); document.body.style.overflow = "hidden"; }
+      function closeFilters() { elements.filters.classList.remove("open"); elements.overlay.hidden = true; elements.filterToggle.setAttribute("aria-expanded", "false"); document.body.style.overflow = ""; }
+      function resetFilters() { [elements.category, elements.subcategory, elements.condition, elements.manufacturer, elements.unit, elements.minimumQuantity].forEach((element) => { element.value = ""; }); updateFilterOptions(); visibleCount = PAGE_SIZE; render(); }
+
+      elements.search.addEventListener("input", () => { visibleCount = PAGE_SIZE; render(); });
+      elements.clearSearch.addEventListener("click", () => { elements.search.value = ""; elements.search.focus(); render(); });
+      elements.sort.addEventListener("change", render);
+      [elements.subcategory, elements.condition, elements.manufacturer, elements.unit, elements.minimumQuantity].forEach((element) => element.addEventListener("change", () => { visibleCount = PAGE_SIZE; render(); }));
+      elements.category.addEventListener("change", () => { elements.subcategory.value = ""; updateFilterOptions(); visibleCount = PAGE_SIZE; render(); });
+      elements.filterToggle.addEventListener("click", openFilters);
+      elements.closeFilters.addEventListener("click", closeFilters);
+      elements.overlay.addEventListener("click", closeFilters);
+      elements.applyFilters.addEventListener("click", () => { render(); closeFilters(); });
+      elements.clearFilters.addEventListener("click", resetFilters);
+      elements.loadMore.addEventListener("click", () => { visibleCount += PAGE_SIZE; render(); });
+
       fetch("/api/anuncios").then(async (response) => {
         const result = await response.json();
         if (!response.ok) throw new Error(result.message || "Não foi possível carregar os anúncios.");
         advertisements = result.advertisements;
+        updateFilterOptions();
+        loadUrlFilters();
         render();
-      }).catch((error) => { empty.textContent = error.message; });
+      }).catch((error) => { elements.resultsCount.textContent = "Não foi possível carregar"; elements.empty.textContent = error.message; });
     </script>
   </body>
 </html>
