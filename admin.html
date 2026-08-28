@@ -357,6 +357,9 @@
         font: inherit;
       }
 
+      .email-change { display: grid; gap: 9px; padding-top: 14px; border-top: 1px solid var(--line); }
+      .email-change label { font-size: .86rem; font-weight: 700; }
+
       .material-files { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--line); }
       .material-gallery { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin: 10px 0 14px; }
       .material-gallery a { display: block; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: var(--surface); }
@@ -535,6 +538,7 @@
         description.textContent = value || "Não informado";
         item.append(term, description);
         list.append(item);
+        return description;
       }
 
       function createCompanyCard(company) {
@@ -556,7 +560,7 @@
         addDetail(details, "CNPJ", formatCnpj(company.cnpj));
         addDetail(details, "Interesse", interestLabels[company.interest]);
         addDetail(details, "Contato principal", company.primaryContact);
-        addDetail(details, "E-mail principal", company.primaryEmail);
+        const primaryEmailValue = addDetail(details, "E-mail principal", company.primaryEmail);
         addDetail(details, "Tamanho do estoque", inventoryLabels[company.inventorySize]);
         addDetail(details, "Recebido em", new Intl.DateTimeFormat("pt-BR", { dateStyle: "long", timeStyle: "short" }).format(new Date(company.receivedAt)));
 
@@ -625,7 +629,22 @@
         copyAccessButton.type = "button";
         copyAccessButton.textContent = "Copiar link";
         copyAccessButton.hidden = true;
-        accessPanel.append(accessTitle, generateAccessButton, generateResetButton, accessLink, copyAccessButton);
+        const emailChange = document.createElement("div");
+        emailChange.className = "email-change";
+        const emailLabel = document.createElement("label");
+        emailLabel.textContent = "Alterar e-mail de acesso";
+        const emailInput = document.createElement("input");
+        emailInput.className = "access-link";
+        emailInput.type = "email";
+        emailInput.value = company.primaryEmail;
+        emailInput.autocomplete = "off";
+        emailInput.maxLength = 254;
+        const changeEmailButton = document.createElement("button");
+        changeEmailButton.className = "action-button reject-button";
+        changeEmailButton.type = "button";
+        changeEmailButton.textContent = "Salvar novo e-mail";
+        emailChange.append(emailLabel, emailInput, changeEmailButton);
+        accessPanel.append(accessTitle, generateAccessButton, generateResetButton, accessLink, copyAccessButton, emailChange);
 
         async function updateStatus(newStatus) {
           approveButton.disabled = true;
@@ -707,6 +726,33 @@
         copyAccessButton.addEventListener("click", async () => {
           await navigator.clipboard.writeText(accessLink.value);
           copyAccessButton.textContent = "Link copiado";
+        });
+        changeEmailButton.addEventListener("click", async () => {
+          if (!emailInput.reportValidity()) return;
+          if (!confirm(`Alterar o e-mail de acesso de ${company.companyName} para ${emailInput.value.trim()}?`)) return;
+          changeEmailButton.disabled = true;
+          feedback.hidden = true;
+          try {
+            const response = await fetch(`/api/cadastros/${company.id}/email`, {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json", Accept: "application/json" },
+              body: JSON.stringify({ email: emailInput.value }),
+            });
+            const result = await response.json();
+            if (!response.ok) throw new Error(result.message || "Não foi possível alterar o e-mail.");
+            company.primaryEmail = result.company.primaryEmail;
+            emailInput.value = company.primaryEmail;
+            primaryEmailValue.textContent = company.primaryEmail;
+            feedback.textContent = result.message;
+            feedback.hidden = false;
+            feedback.focus();
+          } catch (error) {
+            feedback.textContent = error.message;
+            feedback.hidden = false;
+            feedback.focus();
+          } finally {
+            changeEmailButton.disabled = false;
+          }
         });
         article.append(cardHeader, details, documents, actions, feedback, accessPanel);
         return article;
