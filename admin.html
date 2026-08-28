@@ -95,7 +95,7 @@
 
       .admin-tabs {
         display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
+        grid-template-columns: repeat(3, minmax(0, 1fr));
         gap: 8px;
         margin-bottom: 22px;
         padding: 6px;
@@ -361,6 +361,7 @@
       .material-review { display: grid; gap: 10px; margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--line); }
       .material-review label { font-weight: 700; }
       .material-review textarea { width: 100%; min-height: 100px; padding: 11px; border: 1px solid #555b63; border-radius: 9px; background: var(--surface); color: var(--text); font: inherit; resize: vertical; }
+      .interest-note { margin: 4px 0 0; padding: 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface-light); color: var(--muted); line-height: 1.55; white-space: pre-wrap; }
 
       .back-link {
         display: block;
@@ -412,6 +413,7 @@
       }
 
       @media (max-width: 600px) {
+        .admin-tabs { grid-template-columns: 1fr; }
         body::before {
           background:
             linear-gradient(
@@ -439,6 +441,7 @@
       <nav class="admin-tabs" aria-label="Áreas de validação" role="tablist">
         <button id="companies-tab" class="tab-button" type="button" role="tab" aria-selected="true" aria-controls="companies-panel">Validação de empresas</button>
         <button id="materials-tab" class="tab-button" type="button" role="tab" aria-selected="false" aria-controls="materials-panel">Validação de materiais</button>
+        <button id="interests-tab" class="tab-button" type="button" role="tab" aria-selected="false" aria-controls="interests-panel">Interesses</button>
       </nav>
 
       <section id="companies-panel" class="tab-panel" role="tabpanel" aria-labelledby="companies-tab">
@@ -457,6 +460,14 @@
         <section id="material-list" class="company-list" aria-live="polite"><p class="empty-state">Carregando materiais...</p></section>
       </section>
 
+      <section id="interests-panel" class="tab-panel" role="tabpanel" aria-labelledby="interests-tab" hidden>
+        <section class="summary" aria-label="Resumo dos interesses">
+          <div class="summary-item"><strong id="new-interest-count" class="summary-number">0</strong><span class="summary-label">Novos interesses</span></div>
+          <div class="summary-item"><strong id="total-interest-count" class="summary-number">0</strong><span class="summary-label">Interesses recebidos</span></div>
+        </section>
+        <section id="interest-list" class="company-list" aria-live="polite"><p class="empty-state">Carregando interesses...</p></section>
+      </section>
+
       <a class="back-link" href="index.html">Voltar ao início</a>
       <form class="logout-form" action="/api/logout" method="post">
         <button class="logout-button" type="submit">Sair da administração</button>
@@ -470,6 +481,9 @@
       const materialList = document.querySelector("#material-list");
       const pendingMaterialCount = document.querySelector("#pending-material-count");
       const totalMaterialCount = document.querySelector("#total-material-count");
+      const interestList = document.querySelector("#interest-list");
+      const newInterestCount = document.querySelector("#new-interest-count");
+      const totalInterestCount = document.querySelector("#total-interest-count");
 
       const interestLabels = { buy: "Compra", sell: "Venda", both: "Compra e venda" };
       const inventoryLabels = {
@@ -492,6 +506,8 @@
       const unitLabels = { unit: "Unidade", lot: "Lote", kg: "Quilograma", meter: "Metro", square_meter: "Metro quadrado (m²)", cubic_meter: "Metro cúbico (m³)", liter: "Litro" };
       const americanNumber = new Intl.NumberFormat("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
       const money = { format: (value) => `US$ ${americanNumber.format(value)}` };
+      const deadlineLabels = { immediate: "Imediato", "7_days": "Em até 7 dias", "15_days": "Em até 15 dias", "30_days": "Em até 30 dias", flexible: "Prazo flexível" };
+      const subjectLabels = { availability: "Confirmar disponibilidade", technical: "Dúvida técnica", commercial: "Condição comercial", documentation: "Documentação ou certificado", other: "Outro assunto" };
 
       function selectTab(selectedButton, selectedPanel) {
         document.querySelectorAll(".tab-button").forEach((button) => button.setAttribute("aria-selected", String(button === selectedButton)));
@@ -500,6 +516,7 @@
 
       document.querySelector("#companies-tab").addEventListener("click", (event) => selectTab(event.currentTarget, document.querySelector("#companies-panel")));
       document.querySelector("#materials-tab").addEventListener("click", (event) => selectTab(event.currentTarget, document.querySelector("#materials-panel")));
+      document.querySelector("#interests-tab").addEventListener("click", (event) => selectTab(event.currentTarget, document.querySelector("#interests-panel")));
 
       function formatCnpj(value) {
         return value.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, "$1.$2.$3/$4-$5");
@@ -833,6 +850,41 @@
         return article;
       }
 
+      function createInterestCard(interest) {
+        const article = document.createElement("article");
+        article.className = "company-card";
+        const cardHeader = document.createElement("div");
+        cardHeader.className = "card-header";
+        const title = document.createElement("h2");
+        title.textContent = interest.materialDescription;
+        const status = document.createElement("span");
+        status.className = "status";
+        status.textContent = "Recebido";
+        cardHeader.append(title, status);
+        const details = document.createElement("dl");
+        details.className = "details";
+        const unit = interest.unit === "other" ? interest.otherUnit : unitLabels[interest.unit];
+        addDetail(details, "Comprador", interest.buyer?.companyName);
+        addDetail(details, "Contato do comprador", interest.buyer?.primaryEmail);
+        addDetail(details, "Vendedor", interest.seller?.companyName);
+        addDetail(details, "Contato do vendedor", interest.seller?.primaryEmail);
+        addDetail(details, "Part number", interest.partNumber);
+        addDetail(details, "Quantidade desejada", `${interest.quantity} ${unit || ""}`.trim());
+        addDetail(details, "Prazo", deadlineLabels[interest.deadline]);
+        addDetail(details, "Assunto", subjectLabels[interest.subject]);
+        addDetail(details, "Recebido em", new Intl.DateTimeFormat("pt-BR", { dateStyle: "long", timeStyle: "short" }).format(new Date(interest.createdAt)));
+        article.append(cardHeader, details);
+        if (interest.note) {
+          const noteTitle = document.createElement("h3");
+          noteTitle.textContent = "Observação do comprador";
+          const note = document.createElement("p");
+          note.className = "interest-note";
+          note.textContent = interest.note;
+          article.append(noteTitle, note);
+        }
+        return article;
+      }
+
       function updateSummary(companies) {
         pendingCount.textContent = companies.filter((company) => company.status === "pending").length;
         const today = new Date().toDateString();
@@ -889,8 +941,33 @@
         }
       }
 
+      async function loadInterests() {
+        try {
+          const response = await fetch("/api/interesses", { headers: { Accept: "application/json" } });
+          const result = await response.json();
+          if (!response.ok) throw new Error(result.message || "Não foi possível carregar os interesses.");
+          newInterestCount.textContent = result.interests.filter((interest) => interest.status === "received").length;
+          totalInterestCount.textContent = result.interests.length;
+          interestList.replaceChildren();
+          if (!result.interests.length) {
+            const empty = document.createElement("p");
+            empty.className = "empty-state";
+            empty.textContent = "Nenhum interesse foi registrado até o momento.";
+            interestList.append(empty);
+            return;
+          }
+          result.interests.forEach((interest) => interestList.append(createInterestCard(interest)));
+        } catch (error) {
+          const message = document.createElement("p");
+          message.className = "empty-state";
+          message.textContent = error.message;
+          interestList.replaceChildren(message);
+        }
+      }
+
       loadCompanies();
       loadMaterials();
+      loadInterests();
 
     </script>
   </body>

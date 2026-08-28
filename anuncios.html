@@ -64,6 +64,21 @@
       .interest { width: 100%; min-height: 48px; margin-top: 14px; padding: 11px; border: 1px solid #656b73; border-radius: 10px; background: var(--silver); color: #101317; font-weight: 800; cursor: pointer; }
       .block-message { margin: 10px 0 0; padding: 10px; border: 1px solid var(--line); border-radius: 9px; color: var(--muted); font-size: .83rem; line-height: 1.45; }
       .block-message a { color: var(--silver); }
+      .interest-dialog { width: min(calc(100% - 24px), 560px); max-height: calc(100vh - 24px); padding: 0; border: 1px solid #555b63; border-radius: 18px; background: var(--surface); color: var(--text); box-shadow: 0 30px 100px rgb(0 0 0 / 72%); }
+      .interest-dialog::backdrop { background: rgb(0 0 0 / 76%); backdrop-filter: blur(4px); }
+      .interest-form { display: grid; gap: 16px; padding: 22px 18px calc(22px + env(safe-area-inset-bottom)); }
+      .dialog-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+      .dialog-header h2 { margin: 0; font-size: 1.45rem; }
+      .dialog-summary { margin: 6px 0 0; color: var(--muted); font-size: .85rem; line-height: 1.45; }
+      .dialog-close { flex: none; width: 42px; height: 42px; border: 1px solid var(--line); border-radius: 10px; background: transparent; color: var(--text); font-size: 1.25rem; }
+      .interest-fields { display: grid; gap: 14px; }
+      .interest-field label { display: block; margin-bottom: 7px; font-size: .82rem; font-weight: 750; }
+      .interest-field input, .interest-field select, .interest-field textarea { width: 100%; min-height: 48px; padding: 11px 12px; border: 1px solid #50565e; border-radius: 10px; background: var(--surface-light); color: var(--text); }
+      .interest-field textarea { min-height: 110px; resize: vertical; }
+      .privacy-note { margin: 0; padding: 11px; border: 1px solid var(--line); border-radius: 10px; color: var(--muted); font-size: .8rem; line-height: 1.45; }
+      .submit-interest { min-height: 50px; border: 1px solid #656b73; border-radius: 10px; background: var(--silver); color: #101317; font-weight: 800; }
+      .form-feedback { margin: 0; color: var(--muted); font-size: .86rem; line-height: 1.45; text-align: center; }
+      .form-feedback[hidden] { display: none; }
       .empty { padding: 34px 20px; border: 1px dashed #4c525a; border-radius: 16px; color: var(--muted); text-align: center; }
       .load-more { width: 100%; min-height: 50px; margin-top: 16px; border: 1px solid #555b63; border-radius: 11px; background: transparent; color: var(--text); font-weight: 750; }
       .load-more[hidden], .empty[hidden] { display: none; }
@@ -143,6 +158,23 @@
       <a class="back" href="index.html">Voltar ao início</a>
     </main>
     <button id="overlay" class="overlay" type="button" aria-label="Fechar filtros" hidden></button>
+    <dialog id="interest-dialog" class="interest-dialog">
+      <form id="interest-form" class="interest-form">
+        <div class="dialog-header">
+          <div><h2>Registrar interesse</h2><p id="interest-summary" class="dialog-summary"></p></div>
+          <button id="dialog-close" class="dialog-close" type="button" aria-label="Fechar">×</button>
+        </div>
+        <div class="interest-fields">
+          <div class="interest-field"><label for="interest-quantity">Quantidade desejada *</label><input id="interest-quantity" name="quantity" type="number" inputmode="decimal" min="0.001" step="0.001" required /></div>
+          <div class="interest-field"><label for="interest-deadline">Prazo necessário *</label><select id="interest-deadline" name="deadline" required><option value="">Selecione</option><option value="immediate">Imediato</option><option value="7_days">Em até 7 dias</option><option value="15_days">Em até 15 dias</option><option value="30_days">Em até 30 dias</option><option value="flexible">Prazo flexível</option></select></div>
+          <div class="interest-field"><label for="interest-subject">Assunto principal *</label><select id="interest-subject" name="subject" required><option value="">Selecione</option><option value="availability">Confirmar disponibilidade</option><option value="technical">Dúvida técnica</option><option value="commercial">Condição comercial</option><option value="documentation">Documentação ou certificado</option><option value="other">Outro assunto</option></select></div>
+          <div class="interest-field"><label for="interest-note">Observação (opcional)</label><textarea id="interest-note" name="note" maxlength="800" placeholder="Informe detalhes importantes para a intermediação."></textarea></div>
+        </div>
+        <p class="privacy-note">Sua mensagem será recebida pela Global Shared Stock. A identidade e o contato do vendedor permanecerão protegidos.</p>
+        <button id="submit-interest" class="submit-interest" type="submit">Enviar interesse</button>
+        <p id="interest-feedback" class="form-feedback" role="status" tabindex="-1" hidden></p>
+      </form>
+    </dialog>
 
     <script>
       const elements = {
@@ -153,6 +185,8 @@
         category: document.querySelector("#category"), subcategory: document.querySelector("#subcategory"), condition: document.querySelector("#condition"),
         manufacturer: document.querySelector("#manufacturer"), unit: document.querySelector("#unit"), minimumQuantity: document.querySelector("#minimum-quantity"),
         clearFilters: document.querySelector("#clear-filters"), applyFilters: document.querySelector("#apply-filters"), loadMore: document.querySelector("#load-more"),
+        interestDialog: document.querySelector("#interest-dialog"), interestForm: document.querySelector("#interest-form"), interestSummary: document.querySelector("#interest-summary"),
+        interestQuantity: document.querySelector("#interest-quantity"), interestFeedback: document.querySelector("#interest-feedback"), submitInterest: document.querySelector("#submit-interest"),
       };
       const americanNumber = new Intl.NumberFormat("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
       const quantityNumber = new Intl.NumberFormat("en-US", { maximumFractionDigits: 3 });
@@ -162,6 +196,7 @@
       let advertisements = [];
       let filteredAdvertisements = [];
       let visibleCount = PAGE_SIZE;
+      let selectedAdvertisement = null;
 
       function normalized(value) { return String(value || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("pt-BR"); }
       function categoryValue(advertisement) { return advertisement.category === "Outro" ? advertisement.otherCategory : advertisement.category; }
@@ -232,9 +267,50 @@
           const register = document.createElement("a"); register.href = "/cadastro"; register.textContent = "Cadastrar empresa";
           message.append(document.createElement("br"), login, document.createTextNode(" ou "), register);
         }
-        if (advertisement.eligibility.allowed) message.textContent = "Sua empresa está autorizada. O formulário para registrar o interesse será conectado na próxima etapa.";
+        if (advertisement.eligibility.allowed) {
+          selectedAdvertisement = advertisement;
+          elements.interestForm.reset();
+          elements.interestFeedback.hidden = true;
+          elements.interestQuantity.max = advertisement.quantity;
+          elements.interestQuantity.value = Math.min(1, advertisement.quantity);
+          const unit = advertisement.unit === "other" ? advertisement.otherUnit : unitLabels[advertisement.unit];
+          elements.interestSummary.textContent = `${advertisement.description} · Disponível: ${quantityNumber.format(advertisement.quantity)} ${unit}`;
+          elements.interestDialog.showModal();
+          elements.interestQuantity.focus();
+          return;
+        }
         message.hidden = false;
       }
+
+      document.querySelector("#dialog-close").addEventListener("click", () => elements.interestDialog.close());
+      elements.interestDialog.addEventListener("click", (event) => { if (event.target === elements.interestDialog) elements.interestDialog.close(); });
+      elements.interestForm.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        if (!selectedAdvertisement || !elements.interestForm.reportValidity()) return;
+        elements.submitInterest.disabled = true;
+        elements.submitInterest.textContent = "Enviando...";
+        elements.interestFeedback.hidden = true;
+        const data = new FormData(elements.interestForm);
+        try {
+          const response = await fetch("/api/interesses", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Accept: "application/json" },
+            body: JSON.stringify({ materialId: selectedAdvertisement.id, quantity: Number(data.get("quantity")), deadline: data.get("deadline"), subject: data.get("subject"), note: data.get("note") }),
+          });
+          const result = await response.json();
+          if (!response.ok) throw new Error(result.message || "Não foi possível registrar o interesse.");
+          elements.interestFeedback.textContent = result.message;
+          elements.interestFeedback.hidden = false;
+          elements.interestFeedback.focus();
+          elements.submitInterest.textContent = "Interesse enviado";
+        } catch (error) {
+          elements.interestFeedback.textContent = error.message;
+          elements.interestFeedback.hidden = false;
+          elements.interestFeedback.focus();
+          elements.submitInterest.disabled = false;
+          elements.submitInterest.textContent = "Enviar interesse";
+        }
+      });
 
       function currentFilters() {
         return { q: elements.search.value.trim(), category: elements.category.value, subcategory: elements.subcategory.value, condition: elements.condition.value, manufacturer: elements.manufacturer.value, unit: elements.unit.value, minimum: Number(elements.minimumQuantity.value) || 0 };

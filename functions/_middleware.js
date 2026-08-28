@@ -18,6 +18,10 @@ export async function onRequest(context) {
 
   const session = await getSession(context.request, context.env);
   if (url.pathname === "/api/logout" && session) return context.next();
+  if (url.pathname === "/api/interesses") {
+    const allowedInterestRequest = context.request.method === "POST" ? session?.role === "company" : session?.role === "admin";
+    if (allowedInterestRequest) return context.next();
+  }
   const companyArea = url.pathname === "/empresa" || url.pathname.startsWith("/empresa/") || url.pathname.startsWith("/api/empresa");
   const allowed = companyArea ? session?.role === "company" : session?.role === "admin";
   if (allowed) return context.next();
