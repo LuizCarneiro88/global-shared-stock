@@ -10,6 +10,9 @@
       body { min-width: 320px; min-height: 100vh; margin: 0; background: var(--background); color: var(--text); font-family: Inter, ui-sans-serif, system-ui, sans-serif; }
       main { width: min(100% - 24px, 920px); margin: 0 auto; padding: 30px 0 56px; }
       .brand { margin: 0 0 22px; color: var(--silver); font-weight: 800; letter-spacing: 0.14em; text-transform: uppercase; }
+      .account-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 22px; }
+      .account-header .brand { margin: 0; }
+      .active-account { max-width: min(48vw, 360px); margin: 0; overflow: hidden; color: var(--text); font-size: .86rem; font-weight: 750; text-align: right; text-overflow: ellipsis; white-space: nowrap; }
       h1 { margin: 0; font-size: clamp(2.1rem, 10vw, 3.7rem); }
       h2 { margin: 0 0 18px; font-size: 1.4rem; }
       h3 { margin: 0; font-size: 1.05rem; }
@@ -57,7 +60,7 @@
   </head>
   <body>
     <main>
-      <p class="brand">Global Shared Stock</p>
+      <div class="account-header"><p class="brand">Global Shared Stock</p><p id="active-account" class="active-account">Carregando empresa...</p></div>
       <h1>Área da empresa</h1>
       <p id="company-name" class="introduction">Carregando dados da empresa...</p>
 
@@ -565,6 +568,8 @@
           const result = await response.json();
           if (!response.ok) throw new Error(result.message || "Não foi possível carregar os materiais.");
           document.querySelector("#company-name").textContent = result.companyName;
+          document.querySelector("#active-account").textContent = result.companyName;
+          document.querySelector("#active-account").title = `Empresa conectada: ${result.companyName}`;
           draftStorageKey = `global-shared-stock:rascunho:${result.companyId}`;
           restoreDrafts();
           renderDrafts();

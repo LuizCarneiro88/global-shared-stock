@@ -18,6 +18,7 @@
       .header-content { display: flex; width: min(100% - 24px, 1180px); min-height: 78px; margin: auto; align-items: center; justify-content: space-between; gap: 16px; }
       .brand { color: var(--text); font-size: clamp(1rem, 3.3vw, 1.45rem); font-weight: 900; letter-spacing: .15em; line-height: 1; text-decoration: none; text-shadow: 0 2px 20px rgb(255 255 255 / 12%); text-transform: uppercase; }
       .company-access { color: var(--muted); font-size: .82rem; text-underline-offset: 4px; }
+      .company-access.logged-in { max-width: 300px; color: var(--text); font-weight: 750; overflow: hidden; text-decoration: none; text-overflow: ellipsis; white-space: nowrap; }
       main { width: min(100% - 24px, 1180px); margin: auto; padding: 28px 0 60px; }
       .hero { position: relative; display: flex; min-height: 390px; margin-bottom: 22px; padding: 34px 20px; flex-direction: column; justify-content: center; }
       .hero > * { max-width: 690px; }
@@ -109,7 +110,7 @@
     <header class="site-header">
       <div class="header-content">
         <a class="brand" href="index.html">Global Shared Stock</a>
-        <a class="company-access" href="login-empresa.html">Acesso da empresa</a>
+        <a id="active-access" class="company-access" href="login-empresa.html">Acesso da empresa</a>
       </div>
     </header>
     <main>
@@ -393,6 +394,13 @@
         const result = await response.json();
         if (!response.ok) throw new Error(result.message || "Não foi possível carregar os anúncios.");
         advertisements = result.advertisements;
+        const activeAccess = document.querySelector("#active-access");
+        if (result.viewer) {
+          activeAccess.textContent = result.viewer.label;
+          activeAccess.href = result.viewer.role === "admin" ? "/admin" : "/empresa";
+          activeAccess.classList.add("logged-in");
+          activeAccess.title = `Acesso conectado: ${result.viewer.label}`;
+        }
         updateFilterOptions();
         loadUrlFilters();
         render();

@@ -35,7 +35,12 @@ export async function onRequestGet(context) {
         ...(eligibility.allowed ? { unitPriceCents, hasCertificate } : {}),
       };
     });
-    return Response.json({ advertisements: publicAdvertisements, authenticated: Boolean(viewerCompany) }, { headers: { "Cache-Control": "private, no-store" } });
+    const viewer = session?.role === "admin"
+      ? { role: "admin", label: "Administrador" }
+      : viewerCompany
+        ? { role: "company", label: viewerCompany.companyName }
+        : null;
+    return Response.json({ advertisements: publicAdvertisements, authenticated: Boolean(viewer), viewer }, { headers: { "Cache-Control": "private, no-store" } });
   } catch {
     return error("Não foi possível carregar os anúncios.", 500);
   }
