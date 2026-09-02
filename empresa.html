@@ -126,9 +126,21 @@
       </section>
 
       <section class="panel" aria-labelledby="sent-title">
-        <h2 id="sent-title">Materiais enviados</h2>
-        <p id="empty-sent" class="introduction">Nenhum material enviado.</p>
+        <h2 id="sent-title">Materiais cadastrados</h2>
+        <p id="empty-sent" class="introduction">Nenhum material cadastrado.</p>
         <ul id="sent-list" class="material-list"></ul>
+      </section>
+
+      <section class="panel" aria-labelledby="negotiations-title">
+        <h2 id="negotiations-title">Materiais em negociação</h2>
+        <p id="empty-negotiations" class="introduction">Nenhum material em negociação.</p>
+        <ul id="negotiation-list" class="material-list"></ul>
+      </section>
+
+      <section class="panel" aria-labelledby="sold-title">
+        <h2 id="sold-title">Materiais vendidos</h2>
+        <p id="empty-sold" class="introduction">Nenhum material vendido.</p>
+        <ul id="sold-list" class="material-list"></ul>
       </section>
 
       <section class="panel" aria-labelledby="interests-title">
@@ -165,6 +177,10 @@
       const emptySent = document.querySelector("#empty-sent");
       const interestList = document.querySelector("#interest-list");
       const emptyInterests = document.querySelector("#empty-interests");
+      const negotiationList = document.querySelector("#negotiation-list");
+      const emptyNegotiations = document.querySelector("#empty-negotiations");
+      const soldList = document.querySelector("#sold-list");
+      const emptySold = document.querySelector("#empty-sold");
       const submitMaterials = document.querySelector("#submit-materials");
       const clearDraft = document.querySelector("#clear-draft");
       const submissionMessage = document.querySelector("#submission-message");
@@ -191,7 +207,7 @@
       const conditionLabels = { new: "Novo", used: "Usado", refurbished: "Recondicionado", scrap: "Sucata" };
       const unitLabels = { unit: "Unidade", lot: "Lote", kg: "Quilograma", meter: "Metro", square_meter: "Metro quadrado (m²)", cubic_meter: "Metro cúbico (m³)", liter: "Litro" };
       const statusLabels = { pending: "Aguardando análise", approved: "Aprovado", rejected: "Rejeitado" };
-      const interestStatusLabels = { received: "Recebido", in_intermediation: "Em intermediação", rejected: "Rejeitado" };
+      const interestStatusLabels = { received: "Recebido", resubmitted: "Reenviado para avaliação", in_intermediation: "Em intermediação", rejected: "Rejeitado", sold: "Vendido" };
       const deadlineLabels = { immediate: "Imediato", "7_days": "Em até 7 dias", "15_days": "Em até 15 dias", "30_days": "Em até 30 dias", flexible: "Prazo flexível" };
       const subjectLabels = { availability: "Confirmar disponibilidade", technical: "Dúvida técnica", commercial: "Condição comercial", documentation: "Documentação ou certificado", other: "Outro assunto" };
       const americanNumber = new Intl.NumberFormat("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -617,6 +633,87 @@
           reason.textContent = `Motivo da rejeição: ${interest.rejectionReason}`;
           item.append(reason);
         }
+        if (interest.status === "rejected") {
+          const editButton = document.createElement("button");
+          editButton.className = "secondary";
+          editButton.type = "button";
+          editButton.textContent = "Editar e reenviar";
+          const editForm = document.createElement("form");
+          editForm.className = "fields";
+          editForm.hidden = true;
+          const quantityInput = document.createElement("input");
+          quantityInput.type = "number"; quantityInput.inputMode = "decimal"; quantityInput.min = "0.001"; quantityInput.step = "0.001"; quantityInput.required = true; quantityInput.value = interest.quantity;
+          const deadlineSelect = document.createElement("select");
+          deadlineSelect.required = true;
+          Object.entries(deadlineLabels).forEach(([value, label]) => deadlineSelect.append(new Option(label, value)));
+          deadlineSelect.value = interest.deadline;
+          const subjectSelect = document.createElement("select");
+          subjectSelect.required = true;
+          Object.entries(subjectLabels).forEach(([value, label]) => subjectSelect.append(new Option(label, value)));
+          subjectSelect.value = interest.subject;
+          const noteInput = document.createElement("textarea");
+          noteInput.maxLength = 800; noteInput.value = interest.note || "";
+          const addField = (labelText, control, wide = false) => {
+            const field = document.createElement("div");
+            if (wide) field.className = "field-wide";
+            const label = document.createElement("label");
+            label.textContent = labelText;
+            field.append(label, control);
+            editForm.append(field);
+          };
+          addField("Quantidade desejada *", quantityInput);
+          addField("Prazo necessário *", deadlineSelect);
+          addField("Assunto principal *", subjectSelect);
+          addField("Observação", noteInput, true);
+          const formActions = document.createElement("div");
+          formActions.className = "list-actions field-wide";
+          const submit = document.createElement("button");
+          submit.type = "submit"; submit.textContent = "Reenviar para avaliação";
+          const cancel = document.createElement("button");
+          cancel.className = "secondary"; cancel.type = "button"; cancel.textContent = "Cancelar";
+          formActions.append(submit, cancel);
+          const feedback = document.createElement("p");
+          feedback.className = "message field-wide"; feedback.hidden = true; feedback.role = "status";
+          editForm.append(formActions, feedback);
+          editButton.addEventListener("click", () => { editButton.hidden = true; editForm.hidden = false; quantityInput.focus(); });
+          cancel.addEventListener("click", () => { editForm.hidden = true; editButton.hidden = false; });
+          editForm.addEventListener("submit", async (event) => {
+            event.preventDefault();
+            if (!editForm.reportValidity()) return;
+            submit.disabled = true; cancel.disabled = true; feedback.hidden = true;
+            try {
+              const response = await fetch(`/api/interesses/${interest.id}`, { method: "PATCH", headers: { "Content-Type": "application/json", Accept: "application/json" }, body: JSON.stringify({ quantity: Number(quantityInput.value), deadline: deadlineSelect.value, subject: subjectSelect.value, note: noteInput.value }) });
+              const result = await response.json();
+              if (!response.ok) throw new Error(result.message || "Não foi possível reenviar o interesse.");
+              Object.assign(interest, result.interest);
+              item.replaceWith(createInterestCard(interest));
+            } catch (error) {
+              feedback.textContent = error.message; feedback.className = "message error field-wide"; feedback.hidden = false;
+              submit.disabled = false; cancel.disabled = false;
+            }
+          });
+          item.append(editButton, editForm);
+        }
+        return item;
+      }
+
+      function createNegotiationCard(negotiation, sold = false) {
+        const item = document.createElement("li");
+        item.className = "material-card";
+        const header = document.createElement("div");
+        header.className = "material-header";
+        const title = document.createElement("h3");
+        title.textContent = negotiation.materialDescription;
+        const status = document.createElement("span");
+        status.className = "status-pill";
+        status.textContent = sold ? "Vendido" : "Em intermediação";
+        header.append(title, status);
+        const unitName = negotiation.unit === "other" ? negotiation.otherUnit : unitLabels[negotiation.unit];
+        const information = document.createElement("p");
+        const perspective = negotiation.perspective === "seller" ? "Sua empresa está vendendo" : "Sua empresa demonstrou interesse";
+        information.textContent = `${perspective} · Quantidade: ${negotiation.quantity} ${unitName || ""} · Prazo: ${deadlineLabels[negotiation.deadline]}`;
+        item.append(header, information);
+        if (negotiation.partNumber) { const partNumber = document.createElement("p"); partNumber.textContent = `Part number: ${negotiation.partNumber}`; item.append(partNumber); }
         return item;
       }
 
@@ -627,9 +724,17 @@
           if (!response.ok) throw new Error(result.message || "Não foi possível carregar os interesses.");
           interestList.replaceChildren(...result.interests.map(createInterestCard));
           emptyInterests.hidden = result.interests.length > 0;
+          negotiationList.replaceChildren(...result.negotiations.map((interest) => createNegotiationCard(interest)));
+          emptyNegotiations.hidden = result.negotiations.length > 0;
+          soldList.replaceChildren(...result.soldMaterials.map((interest) => createNegotiationCard(interest, true)));
+          emptySold.hidden = result.soldMaterials.length > 0;
         } catch (error) {
           emptyInterests.textContent = error.message;
           emptyInterests.hidden = false;
+          emptyNegotiations.textContent = error.message;
+          emptyNegotiations.hidden = false;
+          emptySold.textContent = error.message;
+          emptySold.hidden = false;
         }
       }
 

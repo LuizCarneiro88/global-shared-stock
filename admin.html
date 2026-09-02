@@ -515,7 +515,7 @@
       const money = { format: (value) => `US$ ${americanNumber.format(value)}` };
       const deadlineLabels = { immediate: "Imediato", "7_days": "Em até 7 dias", "15_days": "Em até 15 dias", "30_days": "Em até 30 dias", flexible: "Prazo flexível" };
       const subjectLabels = { availability: "Confirmar disponibilidade", technical: "Dúvida técnica", commercial: "Condição comercial", documentation: "Documentação ou certificado", other: "Outro assunto" };
-      const interestStatusLabels = { received: { label: "Recebido", className: "" }, in_intermediation: { label: "Em intermediação", className: "approved" }, rejected: { label: "Rejeitado", className: "rejected" } };
+      const interestStatusLabels = { received: { label: "Recebido", className: "" }, resubmitted: { label: "Reenviado para avaliação", className: "" }, in_intermediation: { label: "Em intermediação", className: "approved" }, rejected: { label: "Rejeitado", className: "rejected" } };
 
       function selectTab(selectedButton, selectedPanel) {
         document.querySelectorAll(".tab-button").forEach((button) => button.setAttribute("aria-selected", String(button === selectedButton)));
@@ -926,6 +926,8 @@
         addDetail(details, "Assunto", subjectLabels[interest.subject]);
         addDetail(details, "Recebido em", new Intl.DateTimeFormat("pt-BR", { dateStyle: "long", timeStyle: "short" }).format(new Date(interest.createdAt)));
         if (interest.decidedAt) addDetail(details, "Decidido em", new Intl.DateTimeFormat("pt-BR", { dateStyle: "long", timeStyle: "short" }).format(new Date(interest.decidedAt)));
+        if (interest.revisedAt) addDetail(details, "Corrigido e reenviado em", new Intl.DateTimeFormat("pt-BR", { dateStyle: "long", timeStyle: "short" }).format(new Date(interest.revisedAt)));
+        if (Array.isArray(interest.revisionHistory) && interest.revisionHistory.length) addDetail(details, "Revisões anteriores", String(interest.revisionHistory.length));
         if (interest.status === "rejected") addDetail(details, "Motivo da rejeição", interest.rejectionReason);
         article.append(cardHeader, details);
         if (interest.note) {
@@ -936,7 +938,7 @@
           note.textContent = interest.note;
           article.append(noteTitle, note);
         }
-        if (interest.status === "received") {
+        if (["received", "resubmitted"].includes(interest.status)) {
           const review = document.createElement("section");
           review.className = "material-review";
           const actions = document.createElement("div");
@@ -1059,7 +1061,7 @@
           const response = await fetch("/api/interesses", { headers: { Accept: "application/json" } });
           const result = await response.json();
           if (!response.ok) throw new Error(result.message || "Não foi possível carregar os interesses.");
-          newInterestCount.textContent = result.interests.filter((interest) => interest.status === "received").length;
+          newInterestCount.textContent = result.interests.filter((interest) => ["received", "resubmitted"].includes(interest.status)).length;
           totalInterestCount.textContent = result.interests.length;
           interestList.replaceChildren();
           if (!result.interests.length) {

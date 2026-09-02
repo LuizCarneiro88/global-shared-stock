@@ -32,11 +32,16 @@ export async function onRequestGet(context) {
   try {
     const interests = await listInterests(context.env);
     if (session.role === "company") {
-      const ownInterests = interests
-        .filter((item) => item.buyerCompanyId === session.companyId)
-        .map(({ sellerCompanyId, buyerCompanyId, ...item }) => item)
-        .sort((first, second) => second.createdAt.localeCompare(first.createdAt));
-      return Response.json({ interests: ownInterests }, { headers: { "Cache-Control": "private, no-store" } });
+      const safe = ({ sellerCompanyId, buyerCompanyId, ...item }) => item;
+      const ownInterests = interests.filter((item) => item.buyerCompanyId === session.companyId).map(safe);
+      const negotiations = interests
+        .filter((item) => item.status === "in_intermediation" && [item.buyerCompanyId, item.sellerCompanyId].includes(session.companyId))
+        .map((item) => ({ ...safe(item), perspective: item.buyerCompanyId === session.companyId ? "buyer" : "seller" }));
+      const soldMaterials = interests
+        .filter((item) => item.status === "sold" && [item.buyerCompanyId, item.sellerCompanyId].includes(session.companyId))
+        .map((item) => ({ ...safe(item), perspective: item.buyerCompanyId === session.companyId ? "buyer" : "seller" }));
+      [ownInterests, negotiations, soldMaterials].forEach((list) => list.sort((first, second) => second.createdAt.localeCompare(first.createdAt)));
+      return Response.json({ interests: ownInterests, negotiations, soldMaterials }, { headers: { "Cache-Control": "private, no-store" } });
     }
     const companyIds = [...new Set(interests.flatMap((item) => [item.buyerCompanyId, item.sellerCompanyId]))];
     const companies = await Promise.all(companyIds.map((id) => context.env.CADASTROS.get(`cadastro:${id}:dados`, "json")));
