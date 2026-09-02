@@ -515,7 +515,9 @@
       const money = { format: (value) => `US$ ${americanNumber.format(value)}` };
       const deadlineLabels = { immediate: "Imediato", "7_days": "Em até 7 dias", "15_days": "Em até 15 dias", "30_days": "Em até 30 dias", flexible: "Prazo flexível" };
       const subjectLabels = { availability: "Confirmar disponibilidade", technical: "Dúvida técnica", commercial: "Condição comercial", documentation: "Documentação ou certificado", other: "Outro assunto" };
-      const interestStatusLabels = { received: { label: "Recebido", className: "" }, resubmitted: { label: "Reenviado para avaliação", className: "" }, in_intermediation: { label: "Em intermediação", className: "approved" }, rejected: { label: "Rejeitado", className: "rejected" } };
+      const interestStatusLabels = { received: { label: "Recebido", className: "" }, resubmitted: { label: "Reenviado para avaliação", className: "" }, in_intermediation: { label: "Em intermediação", className: "approved" }, awaiting_seller: { label: "Aguardando vendedor", className: "" }, seller_response_received: { label: "Resposta recebida", className: "approved" }, rejected: { label: "Rejeitado", className: "rejected" } };
+      const sellerAvailabilityLabels = { available: "Disponível", partial: "Parcialmente disponível", unavailable: "Indisponível" };
+      const sellerDeadlineLabels = { immediate: "Imediato", "7_days": "Em até 7 dias", "15_days": "Em até 15 dias", "30_days": "Em até 30 dias", over_30_days: "Acima de 30 dias", not_applicable: "Não se aplica" };
 
       function selectTab(selectedButton, selectedPanel) {
         document.querySelectorAll(".tab-button").forEach((button) => button.setAttribute("aria-selected", String(button === selectedButton)));
@@ -929,6 +931,7 @@
         if (interest.revisedAt) addDetail(details, "Corrigido e reenviado em", new Intl.DateTimeFormat("pt-BR", { dateStyle: "long", timeStyle: "short" }).format(new Date(interest.revisedAt)));
         if (Array.isArray(interest.revisionHistory) && interest.revisionHistory.length) addDetail(details, "Revisões anteriores", String(interest.revisionHistory.length));
         if (interest.status === "rejected") addDetail(details, "Motivo da rejeição", interest.rejectionReason);
+        if (interest.sellerRequestedAt) addDetail(details, "Resposta solicitada em", new Intl.DateTimeFormat("pt-BR", { dateStyle: "long", timeStyle: "short" }).format(new Date(interest.sellerRequestedAt)));
         article.append(cardHeader, details);
         if (interest.note) {
           const noteTitle = document.createElement("h3");
@@ -937,6 +940,20 @@
           note.className = "interest-note";
           note.textContent = interest.note;
           article.append(noteTitle, note);
+        }
+        if (interest.sellerResponse) {
+          const responseTitle = document.createElement("h3");
+          responseTitle.textContent = "Resposta da empresa vendedora";
+          const responseDetails = document.createElement("dl");
+          responseDetails.className = "details";
+          addDetail(responseDetails, "Disponibilidade", sellerAvailabilityLabels[interest.sellerResponse.availability]);
+          addDetail(responseDetails, "Quantidade confirmada", `${interest.sellerResponse.confirmedQuantity} ${unit || ""}`.trim());
+          addDetail(responseDetails, "Prazo para disponibilização", sellerDeadlineLabels[interest.sellerResponse.availabilityDeadline]);
+          addDetail(responseDetails, "Preço final confirmado", money.format(interest.sellerResponse.confirmedUnitPriceCents / 100));
+          addDetail(responseDetails, "Documentação disponível", interest.sellerResponse.documentationAvailable === "yes" ? "Sim" : "Não");
+          addDetail(responseDetails, "Respondido em", new Intl.DateTimeFormat("pt-BR", { dateStyle: "long", timeStyle: "short" }).format(new Date(interest.sellerResponse.respondedAt)));
+          article.append(responseTitle, responseDetails);
+          if (interest.sellerResponse.note) { const responseNote = document.createElement("p"); responseNote.className = "interest-note"; responseNote.textContent = interest.sellerResponse.note; article.append(responseNote); }
         }
         if (["received", "resubmitted"].includes(interest.status)) {
           const review = document.createElement("section");
@@ -992,10 +1009,27 @@
           review.append(actions, rejectionForm, feedback);
           article.append(review);
         } else if (interest.status === "in_intermediation") {
-          const nextStep = document.createElement("p");
-          nextStep.className = "interest-note";
-          nextStep.textContent = "Próxima etapa: solicitar uma resposta estruturada da empresa vendedora.";
-          article.append(nextStep);
+          const requestSeller = document.createElement("button");
+          requestSeller.className = "action-button approve-button";
+          requestSeller.type = "button";
+          requestSeller.textContent = "Solicitar resposta do vendedor";
+          const feedback = document.createElement("p");
+          feedback.className = "feedback"; feedback.hidden = true; feedback.role = "status";
+          requestSeller.addEventListener("click", async () => {
+            requestSeller.disabled = true; feedback.hidden = true;
+            try {
+              const response = await fetch(`/api/interesses/${interest.id}`, { method: "PATCH", headers: { "Content-Type": "application/json", Accept: "application/json" }, body: JSON.stringify({ status: "awaiting_seller" }) });
+              const result = await response.json();
+              if (!response.ok) throw new Error(result.message || "Não foi possível solicitar a resposta.");
+              Object.assign(interest, result.interest);
+              article.replaceWith(createInterestCard(interest));
+            } catch (error) { feedback.textContent = error.message; feedback.hidden = false; requestSeller.disabled = false; }
+          });
+          article.append(requestSeller, feedback);
+        } else if (interest.status === "awaiting_seller") {
+          const nextStep = document.createElement("p"); nextStep.className = "interest-note"; nextStep.textContent = "Aguardando a resposta estruturada da empresa vendedora."; article.append(nextStep);
+        } else if (interest.status === "seller_response_received") {
+          const nextStep = document.createElement("p"); nextStep.className = "interest-note"; nextStep.textContent = "Resposta retida para análise administrativa. Ela ainda não foi compartilhada com a compradora."; article.append(nextStep);
         }
         return article;
       }

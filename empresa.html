@@ -207,7 +207,9 @@
       const conditionLabels = { new: "Novo", used: "Usado", refurbished: "Recondicionado", scrap: "Sucata" };
       const unitLabels = { unit: "Unidade", lot: "Lote", kg: "Quilograma", meter: "Metro", square_meter: "Metro quadrado (m²)", cubic_meter: "Metro cúbico (m³)", liter: "Litro" };
       const statusLabels = { pending: "Aguardando análise", approved: "Aprovado", rejected: "Rejeitado" };
-      const interestStatusLabels = { received: "Recebido", resubmitted: "Reenviado para avaliação", in_intermediation: "Em intermediação", rejected: "Rejeitado", sold: "Vendido" };
+      const interestStatusLabels = { received: "Recebido", resubmitted: "Reenviado para avaliação", in_intermediation: "Em intermediação", awaiting_seller: "Aguardando resposta do vendedor", seller_response_received: "Resposta em análise pela Global Shared Stock", rejected: "Rejeitado", sold: "Vendido" };
+      const sellerAvailabilityLabels = { available: "Disponível", partial: "Parcialmente disponível", unavailable: "Indisponível" };
+      const sellerDeadlineLabels = { immediate: "Imediato", "7_days": "Em até 7 dias", "15_days": "Em até 15 dias", "30_days": "Em até 30 dias", over_30_days: "Acima de 30 dias", not_applicable: "Não se aplica" };
       const deadlineLabels = { immediate: "Imediato", "7_days": "Em até 7 dias", "15_days": "Em até 15 dias", "30_days": "Em até 30 dias", flexible: "Prazo flexível" };
       const subjectLabels = { availability: "Confirmar disponibilidade", technical: "Dúvida técnica", commercial: "Condição comercial", documentation: "Documentação ou certificado", other: "Outro assunto" };
       const americanNumber = new Intl.NumberFormat("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -706,7 +708,7 @@
         title.textContent = negotiation.materialDescription;
         const status = document.createElement("span");
         status.className = "status-pill";
-        status.textContent = sold ? "Vendido" : "Em intermediação";
+        status.textContent = sold ? "Vendido" : negotiation.status === "awaiting_seller" ? (negotiation.perspective === "seller" ? "Resposta solicitada" : "Aguardando vendedor") : negotiation.status === "seller_response_received" ? (negotiation.perspective === "seller" ? "Resposta enviada" : "Resposta em análise") : "Em intermediação";
         header.append(title, status);
         const unitName = negotiation.unit === "other" ? negotiation.otherUnit : unitLabels[negotiation.unit];
         const information = document.createElement("p");
@@ -714,6 +716,60 @@
         information.textContent = `${perspective} · Quantidade: ${negotiation.quantity} ${unitName || ""} · Prazo: ${deadlineLabels[negotiation.deadline]}`;
         item.append(header, information);
         if (negotiation.partNumber) { const partNumber = document.createElement("p"); partNumber.textContent = `Part number: ${negotiation.partNumber}`; item.append(partNumber); }
+        if (!sold && negotiation.perspective === "seller" && negotiation.status === "awaiting_seller") {
+          const form = document.createElement("form");
+          form.className = "fields";
+          const availability = document.createElement("select"); availability.required = true;
+          availability.append(new Option("Selecione", ""), new Option("Disponível", "available"), new Option("Parcialmente disponível", "partial"), new Option("Indisponível", "unavailable"));
+          const confirmedQuantity = document.createElement("input"); confirmedQuantity.type = "number"; confirmedQuantity.inputMode = "decimal"; confirmedQuantity.min = "0.001"; confirmedQuantity.step = "0.001"; confirmedQuantity.required = true; confirmedQuantity.value = negotiation.quantity;
+          const availabilityDeadline = document.createElement("select"); availabilityDeadline.required = true;
+          availabilityDeadline.append(new Option("Selecione", ""));
+          Object.entries(sellerDeadlineLabels).filter(([value]) => value !== "not_applicable").forEach(([value, label]) => availabilityDeadline.append(new Option(label, value)));
+          const confirmedPrice = document.createElement("input"); confirmedPrice.type = "text"; confirmedPrice.inputMode = "decimal"; confirmedPrice.placeholder = "0.00"; confirmedPrice.required = true;
+          const documentation = document.createElement("select"); documentation.required = true; documentation.append(new Option("Selecione", ""), new Option("Sim", "yes"), new Option("Não", "no"));
+          const note = document.createElement("textarea"); note.maxLength = 800; note.placeholder = "Não informe e-mail, telefone, link ou nome da empresa.";
+          const addField = (labelText, control, wide = false) => { const field = document.createElement("div"); if (wide) field.className = "field-wide"; const label = document.createElement("label"); label.textContent = labelText; field.append(label, control); form.append(field); };
+          addField("Disponibilidade confirmada *", availability);
+          addField("Quantidade confirmada *", confirmedQuantity);
+          addField("Prazo para disponibilização *", availabilityDeadline);
+          addField("Preço final unitário confirmado (US$) *", confirmedPrice);
+          addField("Certificado ou documentação disponível? *", documentation);
+          addField("Observação (opcional)", note, true);
+          const privacy = document.createElement("p"); privacy.className = "message field-wide"; privacy.textContent = "A resposta será analisada pela Global Shared Stock antes de qualquer compartilhamento.";
+          const submit = document.createElement("button"); submit.type = "submit"; submit.textContent = "Enviar resposta para análise";
+          const feedback = document.createElement("p"); feedback.className = "message field-wide"; feedback.hidden = true; feedback.role = "status";
+          form.append(privacy, submit, feedback);
+          availability.addEventListener("change", () => {
+            const unavailable = availability.value === "unavailable";
+            confirmedQuantity.value = unavailable ? "0" : negotiation.quantity;
+            confirmedQuantity.min = unavailable ? "0" : "0.001";
+            confirmedQuantity.disabled = unavailable;
+            confirmedPrice.value = unavailable ? "0.00" : "";
+            confirmedPrice.disabled = unavailable;
+            availabilityDeadline.replaceChildren();
+            if (unavailable) availabilityDeadline.append(new Option("Não se aplica", "not_applicable"));
+            else { availabilityDeadline.append(new Option("Selecione", "")); Object.entries(sellerDeadlineLabels).filter(([value]) => value !== "not_applicable").forEach(([value, label]) => availabilityDeadline.append(new Option(label, value))); }
+          });
+          confirmedPrice.addEventListener("input", () => { confirmedPrice.value = formatPriceInput(confirmedPrice.value); });
+          form.addEventListener("submit", async (event) => {
+            event.preventDefault(); if (!form.reportValidity()) return;
+            submit.disabled = true; feedback.hidden = true;
+            const unavailable = availability.value === "unavailable";
+            try {
+              const response = await fetch(`/api/interesses/${negotiation.id}`, { method: "PATCH", headers: { "Content-Type": "application/json", Accept: "application/json" }, body: JSON.stringify({ availability: availability.value, confirmedQuantity: unavailable ? 0 : Number(confirmedQuantity.value), availabilityDeadline: availabilityDeadline.value, confirmedUnitPriceCents: unavailable ? 0 : priceInCents(confirmedPrice.value), documentationAvailable: documentation.value, note: note.value }) });
+              const result = await response.json();
+              if (!response.ok) throw new Error(result.message || "Não foi possível enviar a resposta.");
+              Object.assign(negotiation, result.interest);
+              item.replaceWith(createNegotiationCard(negotiation));
+            } catch (error) { feedback.textContent = error.message; feedback.className = "message error field-wide"; feedback.hidden = false; submit.disabled = false; }
+          });
+          item.append(form);
+        } else if (!sold && negotiation.perspective === "seller" && negotiation.status === "seller_response_received" && negotiation.sellerResponse) {
+          const response = document.createElement("p");
+          response.className = "message success";
+          response.textContent = `Resposta enviada: ${sellerAvailabilityLabels[negotiation.sellerResponse.availability]} · ${negotiation.sellerResponse.confirmedQuantity} ${unitName || ""} · ${money.format(negotiation.sellerResponse.confirmedUnitPriceCents / 100)}`;
+          item.append(response);
+        }
         return item;
       }
 

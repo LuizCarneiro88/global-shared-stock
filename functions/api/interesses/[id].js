@@ -4,9 +4,15 @@ const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0
 const DECISIONS = new Set(["in_intermediation", "rejected"]);
 const DEADLINES = new Set(["immediate", "7_days", "15_days", "30_days", "flexible"]);
 const SUBJECTS = new Set(["availability", "technical", "commercial", "documentation", "other"]);
+const AVAILABILITY = new Set(["available", "partial", "unavailable"]);
+const SELLER_DEADLINES = new Set(["immediate", "7_days", "15_days", "30_days", "over_30_days", "not_applicable"]);
 
 function error(message, status = 400) {
   return Response.json({ message }, { status, headers: { "Cache-Control": "no-store" } });
+}
+
+function containsDirectContact(value) {
+  return /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i.test(value) || /(https?:\/\/|www\.|\.com(?:\.br)?\b)/i.test(value) || /(?:\d[\s().+-]*){8,}/.test(value);
 }
 
 export async function onRequestPatch(context) {
@@ -21,7 +27,29 @@ export async function onRequestPatch(context) {
   if (!interest) return error("Interesse não encontrado.", 404);
 
   if (session?.role === "company") {
-    if (interest.buyerCompanyId !== session.companyId) return error("Somente a empresa interessada pode corrigir esta solicitação.", 403);
+    if (interest.sellerCompanyId === session.companyId && interest.status === "awaiting_seller") {
+      const availability = String(input.availability || "");
+      const confirmedQuantity = Number(input.confirmedQuantity);
+      const availabilityDeadline = String(input.availabilityDeadline || "");
+      const confirmedUnitPriceCents = Number(input.confirmedUnitPriceCents);
+      const documentationAvailable = String(input.documentationAvailable || "");
+      const note = String(input.note || "").trim().replace(/\s+/g, " ").slice(0, 800);
+      if (!AVAILABILITY.has(availability)) return error("Confirme a disponibilidade do material.");
+      if (!Number.isFinite(confirmedQuantity) || confirmedQuantity < 0 || (availability !== "unavailable" && confirmedQuantity <= 0)) return error("Informe uma quantidade confirmada válida.");
+      if (availability === "unavailable" && confirmedQuantity !== 0) return error("Para material indisponível, informe quantidade zero.");
+      if (confirmedQuantity > Number(interest.quantity)) return error("A quantidade confirmada não pode superar a quantidade solicitada.");
+      if (!SELLER_DEADLINES.has(availabilityDeadline)) return error("Selecione um prazo de disponibilização válido.");
+      if (!Number.isInteger(confirmedUnitPriceCents) || confirmedUnitPriceCents < 0 || (availability !== "unavailable" && confirmedUnitPriceCents <= 0)) return error("Informe um preço final válido.");
+      if (availability === "unavailable" && confirmedUnitPriceCents !== 0) return error("Para material indisponível, informe preço zero.");
+      if (!["yes", "no"].includes(documentationAvailable)) return error("Informe se a documentação está disponível.");
+      if (containsDirectContact(note)) return error("A observação não pode conter e-mail, telefone ou link. A Global Shared Stock preserva o sigilo entre as empresas.");
+      const sellerResponse = { availability, confirmedQuantity, availabilityDeadline, confirmedUnitPriceCents, documentationAvailable, note, respondedAt: new Date().toISOString() };
+      const updated = { ...interest, status: "seller_response_received", sellerResponse };
+      await context.env.CADASTROS.put(key, JSON.stringify(updated));
+      const { sellerCompanyId, buyerCompanyId, ...safeInterest } = updated;
+      return Response.json({ success: true, interest: safeInterest, message: "Resposta enviada para análise da Global Shared Stock." }, { headers: { "Cache-Control": "no-store" } });
+    }
+    if (interest.buyerCompanyId !== session.companyId) return error("Somente a empresa responsável por esta etapa pode atualizar a solicitação.", 403);
     if (interest.status !== "rejected") return error("Somente interesses rejeitados podem ser editados.", 409);
     const quantity = Number(input.quantity);
     const deadline = String(input.deadline || "");
@@ -47,6 +75,12 @@ export async function onRequestPatch(context) {
   if (session?.role !== "admin") return error("Acesso administrativo necessário.", 403);
   const status = String(input.status || "");
   const rejectionReason = String(input.rejectionReason || "").trim().replace(/\s+/g, " ").slice(0, 500);
+  if (status === "awaiting_seller") {
+    if (interest.status !== "in_intermediation") return error("A resposta do vendedor só pode ser solicitada em uma negociação aceita.", 409);
+    const updated = { ...interest, status: "awaiting_seller", sellerRequestedAt: new Date().toISOString() };
+    await context.env.CADASTROS.put(key, JSON.stringify(updated));
+    return Response.json({ success: true, interest: updated }, { headers: { "Cache-Control": "no-store" } });
+  }
   if (!DECISIONS.has(status)) return error("Decisão inválida.");
   if (status === "rejected" && !rejectionReason) return error("Informe o motivo da rejeição.");
 

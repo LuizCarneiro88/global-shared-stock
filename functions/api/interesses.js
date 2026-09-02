@@ -33,10 +33,11 @@ export async function onRequestGet(context) {
     const interests = await listInterests(context.env);
     if (session.role === "company") {
       const safe = ({ sellerCompanyId, buyerCompanyId, ...item }) => item;
-      const ownInterests = interests.filter((item) => item.buyerCompanyId === session.companyId).map(safe);
+      const safeForBuyer = (item) => { const { sellerResponse, ...visible } = safe(item); return visible; };
+      const ownInterests = interests.filter((item) => item.buyerCompanyId === session.companyId).map(safeForBuyer);
       const negotiations = interests
-        .filter((item) => item.status === "in_intermediation" && [item.buyerCompanyId, item.sellerCompanyId].includes(session.companyId))
-        .map((item) => ({ ...safe(item), perspective: item.buyerCompanyId === session.companyId ? "buyer" : "seller" }));
+        .filter((item) => ["in_intermediation", "awaiting_seller", "seller_response_received"].includes(item.status) && [item.buyerCompanyId, item.sellerCompanyId].includes(session.companyId))
+        .map((item) => ({ ...(item.buyerCompanyId === session.companyId ? safeForBuyer(item) : safe(item)), perspective: item.buyerCompanyId === session.companyId ? "buyer" : "seller" }));
       const soldMaterials = interests
         .filter((item) => item.status === "sold" && [item.buyerCompanyId, item.sellerCompanyId].includes(session.companyId))
         .map((item) => ({ ...safe(item), perspective: item.buyerCompanyId === session.companyId ? "buyer" : "seller" }));
