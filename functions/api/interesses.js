@@ -33,7 +33,13 @@ export async function onRequestGet(context) {
     const interests = await listInterests(context.env);
     if (session.role === "company") {
       const safe = ({ sellerCompanyId, buyerCompanyId, ...item }) => item;
-      const safeForBuyer = (item) => { const { sellerResponse, ...visible } = safe(item); return visible; };
+      const safeForBuyer = (item) => {
+        const visible = safe(item);
+        const { sellerResponseHistory, sellerCorrectionReason, ...withoutInternalReview } = visible;
+        if (item.status === "response_shared") return withoutInternalReview;
+        const { sellerResponse, ...protectedItem } = withoutInternalReview;
+        return protectedItem;
+      };
       const related = interests.filter((item) => [item.buyerCompanyId, item.sellerCompanyId].includes(session.companyId));
       const materialIds = [...new Set(related.map((item) => item.materialId))];
       const advertisements = await Promise.all(materialIds.map((id) => context.env.CADASTROS.get(`anuncio:${id}`, "json")));
@@ -54,7 +60,7 @@ export async function onRequestGet(context) {
       };
       const ownInterests = interests.filter((item) => item.buyerCompanyId === session.companyId).map(safeForBuyer);
       const negotiations = interests
-        .filter((item) => ["in_intermediation", "awaiting_seller", "seller_response_received"].includes(item.status) && [item.buyerCompanyId, item.sellerCompanyId].includes(session.companyId))
+        .filter((item) => ["in_intermediation", "awaiting_seller", "seller_response_received", "seller_correction_requested", "response_shared"].includes(item.status) && [item.buyerCompanyId, item.sellerCompanyId].includes(session.companyId))
         .map(companyView);
       const soldMaterials = interests
         .filter((item) => item.status === "sold" && [item.buyerCompanyId, item.sellerCompanyId].includes(session.companyId))

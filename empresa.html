@@ -50,6 +50,7 @@
       .card-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
       .status-pill { padding: 6px 9px; border: 1px solid #5a5f67; border-radius: 999px; color: var(--silver); font-size: 0.72rem; font-weight: 750; }
       .reference-data { margin: 16px 0; padding: 14px; border: 1px solid var(--line); border-radius: 11px; background: rgb(9 11 13 / 48%); opacity: .78; }
+      .reference-data.shared-response { opacity: 1; border-color: #57735c; }
       .reference-data h4 { margin: 0 0 11px; color: var(--silver); font-size: .82rem; text-transform: uppercase; letter-spacing: .06em; }
       .reference-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
       .reference-item span { display: block; color: var(--muted); font-size: .7rem; }
@@ -214,7 +215,7 @@
       const conditionLabels = { new: "Novo", used: "Usado", refurbished: "Recondicionado", scrap: "Sucata" };
       const unitLabels = { unit: "Unidade", lot: "Lote", kg: "Quilograma", meter: "Metro", square_meter: "Metro quadrado (m²)", cubic_meter: "Metro cúbico (m³)", liter: "Litro" };
       const statusLabels = { pending: "Aguardando análise", approved: "Aprovado", rejected: "Rejeitado" };
-      const interestStatusLabels = { received: "Recebido", resubmitted: "Reenviado para avaliação", in_intermediation: "Em intermediação", awaiting_seller: "Aguardando resposta do vendedor", seller_response_received: "Resposta em análise pela Global Shared Stock", rejected: "Rejeitado", sold: "Vendido" };
+      const interestStatusLabels = { received: "Recebido", resubmitted: "Reenviado para avaliação", in_intermediation: "Em intermediação", awaiting_seller: "Aguardando resposta do vendedor", seller_response_received: "Resposta em análise pela Global Shared Stock", seller_correction_requested: "Correção solicitada ao vendedor", response_shared: "Resposta do vendedor recebida", rejected: "Rejeitado", sold: "Vendido" };
       const sellerAvailabilityLabels = { available: "Disponível", partial: "Parcialmente disponível", unavailable: "Indisponível" };
       const sellerDeadlineLabels = { immediate: "Imediato", "7_days": "Em até 7 dias", "15_days": "Em até 15 dias", "30_days": "Em até 30 dias", over_30_days: "Acima de 30 dias", not_applicable: "Não se aplica" };
       const deadlineLabels = { immediate: "Imediato", "7_days": "Em até 7 dias", "15_days": "Em até 15 dias", "30_days": "Em até 30 dias", flexible: "Prazo flexível" };
@@ -616,6 +617,22 @@
         }
       }
 
+      function appendSharedResponse(container, record, unitName) {
+        if (record.status !== "response_shared" || !record.sellerResponse) return;
+        const response = document.createElement("section"); response.className = "reference-data shared-response";
+        const title = document.createElement("h4"); title.textContent = "Resposta encaminhada pela Global Shared Stock";
+        const grid = document.createElement("div"); grid.className = "reference-grid";
+        const add = (label, value) => { const field = document.createElement("div"); field.className = "reference-item"; const name = document.createElement("span"); name.textContent = label; const content = document.createElement("strong"); content.textContent = value; field.append(name, content); grid.append(field); };
+        add("Disponibilidade", sellerAvailabilityLabels[record.sellerResponse.availability]);
+        add("Quantidade confirmada", `${record.sellerResponse.confirmedQuantity} ${unitName || ""}`.trim());
+        add("Prazo", sellerDeadlineLabels[record.sellerResponse.availabilityDeadline]);
+        add("Preço final unitário", money.format(record.sellerResponse.confirmedUnitPriceCents / 100));
+        add("Documentação disponível", record.sellerResponse.documentationAvailable === "yes" ? "Sim" : "Não");
+        response.append(title, grid);
+        if (record.sellerResponse.note) { const note = document.createElement("p"); note.textContent = record.sellerResponse.note; response.append(note); }
+        container.append(response);
+      }
+
       function createInterestCard(interest) {
         const item = document.createElement("li");
         item.className = "material-card";
@@ -636,6 +653,7 @@
           partNumber.textContent = `Part number: ${interest.partNumber}`;
           item.append(partNumber);
         }
+        appendSharedResponse(item, interest, unitName);
         if (interest.status === "rejected" && interest.rejectionReason) {
           const reason = document.createElement("p");
           reason.className = "message error";
@@ -715,7 +733,7 @@
         title.textContent = negotiation.materialDescription;
         const status = document.createElement("span");
         status.className = "status-pill";
-        status.textContent = sold ? "Vendido" : negotiation.status === "awaiting_seller" ? (negotiation.perspective === "seller" ? "Resposta solicitada" : "Aguardando vendedor") : negotiation.status === "seller_response_received" ? (negotiation.perspective === "seller" ? "Resposta enviada" : "Resposta em análise") : "Em intermediação";
+        status.textContent = sold ? "Vendido" : negotiation.status === "awaiting_seller" ? (negotiation.perspective === "seller" ? "Resposta solicitada" : "Aguardando vendedor") : negotiation.status === "seller_response_received" ? (negotiation.perspective === "seller" ? "Resposta enviada" : "Resposta em análise") : negotiation.status === "seller_correction_requested" ? (negotiation.perspective === "seller" ? "Correção solicitada" : "Resposta em correção") : negotiation.status === "response_shared" ? (negotiation.perspective === "seller" ? "Resposta encaminhada" : "Resposta recebida") : "Em intermediação";
         header.append(title, status);
         const unitName = negotiation.unit === "other" ? negotiation.otherUnit : unitLabels[negotiation.unit];
         const information = document.createElement("p");
@@ -723,6 +741,7 @@
         information.textContent = `${perspective} · Quantidade: ${negotiation.quantity} ${unitName || ""} · Prazo: ${deadlineLabels[negotiation.deadline]}`;
         item.append(header, information);
         if (negotiation.partNumber) { const partNumber = document.createElement("p"); partNumber.textContent = `Part number: ${negotiation.partNumber}`; item.append(partNumber); }
+        if (negotiation.perspective === "buyer") appendSharedResponse(item, negotiation, unitName);
         if (negotiation.perspective === "seller" && negotiation.advertised) {
           const reference = document.createElement("section");
           reference.className = "reference-data";
@@ -743,7 +762,8 @@
           if (Number(negotiation.quantity) > Number(negotiation.advertised.quantity)) { const warning = document.createElement("p"); warning.className = "stock-warning"; warning.textContent = "A quantidade solicitada é maior que o estoque atualmente anunciado."; reference.append(warning); }
           item.append(reference);
         }
-        if (!sold && negotiation.perspective === "seller" && negotiation.status === "awaiting_seller") {
+        if (!sold && negotiation.perspective === "seller" && ["awaiting_seller", "seller_correction_requested"].includes(negotiation.status)) {
+          if (negotiation.status === "seller_correction_requested") { const correction = document.createElement("p"); correction.className = "message error"; correction.textContent = `Correção solicitada pela Global Shared Stock: ${negotiation.sellerCorrectionReason}`; item.append(correction); }
           const form = document.createElement("form");
           form.className = "fields";
           const availability = document.createElement("select"); availability.required = true;
@@ -755,7 +775,15 @@
           const confirmedPrice = document.createElement("input"); confirmedPrice.type = "text"; confirmedPrice.inputMode = "decimal"; confirmedPrice.placeholder = "0.00"; confirmedPrice.required = true;
           const documentation = document.createElement("select"); documentation.required = true; documentation.append(new Option("Selecione", ""), new Option("Sim", "yes"), new Option("Não", "no"));
           const note = document.createElement("textarea"); note.maxLength = 800; note.placeholder = "Não informe e-mail, telefone, link ou nome da empresa.";
-          if (negotiation.advertised) {
+          if (negotiation.status === "seller_correction_requested" && negotiation.sellerResponse) {
+            availability.value = negotiation.sellerResponse.availability;
+            confirmedQuantity.value = negotiation.sellerResponse.confirmedQuantity;
+            availabilityDeadline.value = negotiation.sellerResponse.availabilityDeadline;
+            confirmedPrice.value = americanNumber.format(negotiation.sellerResponse.confirmedUnitPriceCents / 100);
+            documentation.value = negotiation.sellerResponse.documentationAvailable;
+            note.value = negotiation.sellerResponse.note || "";
+            if (availability.value === "unavailable") { confirmedQuantity.disabled = true; confirmedPrice.disabled = true; availabilityDeadline.replaceChildren(new Option("Não se aplica", "not_applicable")); }
+          } else if (negotiation.advertised) {
             availability.value = "available";
             confirmedQuantity.value = Math.min(Number(negotiation.quantity), Number(negotiation.advertised.quantity));
             confirmedPrice.value = americanNumber.format(negotiation.advertised.unitPriceCents / 100);

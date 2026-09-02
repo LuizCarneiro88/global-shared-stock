@@ -515,7 +515,7 @@
       const money = { format: (value) => `US$ ${americanNumber.format(value)}` };
       const deadlineLabels = { immediate: "Imediato", "7_days": "Em até 7 dias", "15_days": "Em até 15 dias", "30_days": "Em até 30 dias", flexible: "Prazo flexível" };
       const subjectLabels = { availability: "Confirmar disponibilidade", technical: "Dúvida técnica", commercial: "Condição comercial", documentation: "Documentação ou certificado", other: "Outro assunto" };
-      const interestStatusLabels = { received: { label: "Recebido", className: "" }, resubmitted: { label: "Reenviado para avaliação", className: "" }, in_intermediation: { label: "Em intermediação", className: "approved" }, awaiting_seller: { label: "Aguardando vendedor", className: "" }, seller_response_received: { label: "Resposta recebida", className: "approved" }, rejected: { label: "Rejeitado", className: "rejected" } };
+      const interestStatusLabels = { received: { label: "Recebido", className: "" }, resubmitted: { label: "Reenviado para avaliação", className: "" }, in_intermediation: { label: "Em intermediação", className: "approved" }, awaiting_seller: { label: "Aguardando vendedor", className: "" }, seller_response_received: { label: "Resposta recebida", className: "approved" }, seller_correction_requested: { label: "Correção solicitada ao vendedor", className: "" }, response_shared: { label: "Encaminhada ao comprador", className: "approved" }, rejected: { label: "Rejeitado", className: "rejected" } };
       const sellerAvailabilityLabels = { available: "Disponível", partial: "Parcialmente disponível", unavailable: "Indisponível" };
       const sellerDeadlineLabels = { immediate: "Imediato", "7_days": "Em até 7 dias", "15_days": "Em até 15 dias", "30_days": "Em até 30 dias", over_30_days: "Acima de 30 dias", not_applicable: "Não se aplica" };
 
@@ -932,6 +932,9 @@
         if (Array.isArray(interest.revisionHistory) && interest.revisionHistory.length) addDetail(details, "Revisões anteriores", String(interest.revisionHistory.length));
         if (interest.status === "rejected") addDetail(details, "Motivo da rejeição", interest.rejectionReason);
         if (interest.sellerRequestedAt) addDetail(details, "Resposta solicitada em", new Intl.DateTimeFormat("pt-BR", { dateStyle: "long", timeStyle: "short" }).format(new Date(interest.sellerRequestedAt)));
+        if (interest.responseSharedAt) addDetail(details, "Encaminhada ao comprador em", new Intl.DateTimeFormat("pt-BR", { dateStyle: "long", timeStyle: "short" }).format(new Date(interest.responseSharedAt)));
+        if (interest.sellerCorrectionReason) addDetail(details, "Correção solicitada", interest.sellerCorrectionReason);
+        if (Array.isArray(interest.sellerResponseHistory) && interest.sellerResponseHistory.length) addDetail(details, "Respostas anteriores do vendedor", String(interest.sellerResponseHistory.length));
         article.append(cardHeader, details);
         if (interest.note) {
           const noteTitle = document.createElement("h3");
@@ -1029,7 +1032,35 @@
         } else if (interest.status === "awaiting_seller") {
           const nextStep = document.createElement("p"); nextStep.className = "interest-note"; nextStep.textContent = "Aguardando a resposta estruturada da empresa vendedora."; article.append(nextStep);
         } else if (interest.status === "seller_response_received") {
-          const nextStep = document.createElement("p"); nextStep.className = "interest-note"; nextStep.textContent = "Resposta retida para análise administrativa. Ela ainda não foi compartilhada com a compradora."; article.append(nextStep);
+          const review = document.createElement("section"); review.className = "material-review";
+          const actions = document.createElement("div"); actions.className = "actions";
+          const share = document.createElement("button"); share.className = "action-button approve-button"; share.type = "button"; share.textContent = "Encaminhar resposta ao comprador";
+          const requestCorrection = document.createElement("button"); requestCorrection.className = "action-button reject-button"; requestCorrection.type = "button"; requestCorrection.textContent = "Solicitar correção ao vendedor";
+          actions.append(share, requestCorrection);
+          const correctionForm = document.createElement("div"); correctionForm.hidden = true;
+          const correctionLabel = document.createElement("label"); correctionLabel.textContent = "Motivo da correção *";
+          const correctionReason = document.createElement("textarea"); correctionReason.maxLength = 500; correctionReason.placeholder = "Explique claramente o que a empresa vendedora deve corrigir.";
+          const confirmCorrection = document.createElement("button"); confirmCorrection.className = "action-button reject-button"; confirmCorrection.type = "button"; confirmCorrection.textContent = "Confirmar solicitação de correção";
+          correctionForm.append(correctionLabel, correctionReason, confirmCorrection);
+          const feedback = document.createElement("p"); feedback.className = "feedback"; feedback.hidden = true; feedback.role = "status";
+          async function reviewResponse(statusValue) {
+            if (statusValue === "seller_correction_requested" && !correctionReason.value.trim()) { correctionReason.setCustomValidity("Informe o motivo da correção."); correctionReason.reportValidity(); return; }
+            correctionReason.setCustomValidity(""); share.disabled = true; requestCorrection.disabled = true; confirmCorrection.disabled = true; feedback.hidden = true;
+            try {
+              const response = await fetch(`/api/interesses/${interest.id}`, { method: "PATCH", headers: { "Content-Type": "application/json", Accept: "application/json" }, body: JSON.stringify({ status: statusValue, sellerCorrectionReason: correctionReason.value }) });
+              const result = await response.json();
+              if (!response.ok) throw new Error(result.message || "Não foi possível concluir a revisão.");
+              Object.assign(interest, result.interest); article.replaceWith(createInterestCard(interest));
+            } catch (error) { feedback.textContent = error.message; feedback.hidden = false; share.disabled = false; requestCorrection.disabled = false; confirmCorrection.disabled = false; }
+          }
+          share.addEventListener("click", () => reviewResponse("response_shared"));
+          requestCorrection.addEventListener("click", () => { correctionForm.hidden = false; correctionReason.focus(); });
+          confirmCorrection.addEventListener("click", () => reviewResponse("seller_correction_requested"));
+          review.append(actions, correctionForm, feedback); article.append(review);
+        } else if (interest.status === "seller_correction_requested") {
+          const nextStep = document.createElement("p"); nextStep.className = "interest-note"; nextStep.textContent = "Aguardando a resposta corrigida da empresa vendedora."; article.append(nextStep);
+        } else if (interest.status === "response_shared") {
+          const nextStep = document.createElement("p"); nextStep.className = "interest-note"; nextStep.textContent = "Resposta encaminhada à compradora com a identidade da vendedora protegida."; article.append(nextStep);
         }
         return article;
       }

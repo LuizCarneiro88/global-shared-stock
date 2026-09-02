@@ -27,7 +27,7 @@ export async function onRequestPatch(context) {
   if (!interest) return error("Interesse não encontrado.", 404);
 
   if (session?.role === "company") {
-    if (interest.sellerCompanyId === session.companyId && interest.status === "awaiting_seller") {
+    if (interest.sellerCompanyId === session.companyId && ["awaiting_seller", "seller_correction_requested"].includes(interest.status)) {
       const availability = String(input.availability || "");
       const confirmedQuantity = Number(input.confirmedQuantity);
       const availabilityDeadline = String(input.availabilityDeadline || "");
@@ -44,7 +44,10 @@ export async function onRequestPatch(context) {
       if (!["yes", "no"].includes(documentationAvailable)) return error("Informe se a documentação está disponível.");
       if (containsDirectContact(note)) return error("A observação não pode conter e-mail, telefone ou link. A Global Shared Stock preserva o sigilo entre as empresas.");
       const sellerResponse = { availability, confirmedQuantity, availabilityDeadline, confirmedUnitPriceCents, documentationAvailable, note, respondedAt: new Date().toISOString() };
-      const updated = { ...interest, status: "seller_response_received", sellerResponse };
+      const sellerResponseHistory = interest.status === "seller_correction_requested" && interest.sellerResponse
+        ? [...(Array.isArray(interest.sellerResponseHistory) ? interest.sellerResponseHistory : []), { ...interest.sellerResponse, correctionReason: interest.sellerCorrectionReason || "" }]
+        : interest.sellerResponseHistory || [];
+      const updated = { ...interest, status: "seller_response_received", sellerResponse, sellerResponseHistory, sellerCorrectionReason: "" };
       await context.env.CADASTROS.put(key, JSON.stringify(updated));
       const { sellerCompanyId, buyerCompanyId, ...safeInterest } = updated;
       return Response.json({ success: true, interest: safeInterest, message: "Resposta enviada para análise da Global Shared Stock." }, { headers: { "Cache-Control": "no-store" } });
@@ -78,6 +81,20 @@ export async function onRequestPatch(context) {
   if (status === "awaiting_seller") {
     if (interest.status !== "in_intermediation") return error("A resposta do vendedor só pode ser solicitada em uma negociação aceita.", 409);
     const updated = { ...interest, status: "awaiting_seller", sellerRequestedAt: new Date().toISOString() };
+    await context.env.CADASTROS.put(key, JSON.stringify(updated));
+    return Response.json({ success: true, interest: updated }, { headers: { "Cache-Control": "no-store" } });
+  }
+  if (status === "response_shared") {
+    if (interest.status !== "seller_response_received" || !interest.sellerResponse) return error("Não há uma resposta do vendedor pronta para encaminhamento.", 409);
+    const updated = { ...interest, status: "response_shared", responseSharedAt: new Date().toISOString() };
+    await context.env.CADASTROS.put(key, JSON.stringify(updated));
+    return Response.json({ success: true, interest: updated }, { headers: { "Cache-Control": "no-store" } });
+  }
+  if (status === "seller_correction_requested") {
+    const sellerCorrectionReason = String(input.sellerCorrectionReason || "").trim().replace(/\s+/g, " ").slice(0, 500);
+    if (interest.status !== "seller_response_received" || !interest.sellerResponse) return error("Não há uma resposta do vendedor para devolver.", 409);
+    if (!sellerCorrectionReason) return error("Informe o motivo da correção solicitada.");
+    const updated = { ...interest, status: "seller_correction_requested", sellerCorrectionReason, sellerCorrectionRequestedAt: new Date().toISOString() };
     await context.env.CADASTROS.put(key, JSON.stringify(updated));
     return Response.json({ success: true, interest: updated }, { headers: { "Cache-Control": "no-store" } });
   }
