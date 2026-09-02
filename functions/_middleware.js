@@ -19,7 +19,7 @@ export async function onRequest(context) {
   const session = await getSession(context.request, context.env);
   if (url.pathname === "/api/logout" && session) return context.next();
   if (url.pathname === "/api/interesses") {
-    const allowedInterestRequest = context.request.method === "POST" ? session?.role === "company" : session?.role === "admin";
+    const allowedInterestRequest = ["GET", "POST"].includes(context.request.method) ? session?.role === "company" || (context.request.method === "GET" && session?.role === "admin") : false;
     if (allowedInterestRequest) return context.next();
   }
   const companyArea = url.pathname === "/empresa" || url.pathname.startsWith("/empresa/") || url.pathname.startsWith("/api/empresa");

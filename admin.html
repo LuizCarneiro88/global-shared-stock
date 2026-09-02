@@ -515,6 +515,7 @@
       const money = { format: (value) => `US$ ${americanNumber.format(value)}` };
       const deadlineLabels = { immediate: "Imediato", "7_days": "Em até 7 dias", "15_days": "Em até 15 dias", "30_days": "Em até 30 dias", flexible: "Prazo flexível" };
       const subjectLabels = { availability: "Confirmar disponibilidade", technical: "Dúvida técnica", commercial: "Condição comercial", documentation: "Documentação ou certificado", other: "Outro assunto" };
+      const interestStatusLabels = { received: { label: "Recebido", className: "" }, in_intermediation: { label: "Em intermediação", className: "approved" }, rejected: { label: "Rejeitado", className: "rejected" } };
 
       function selectTab(selectedButton, selectedPanel) {
         document.querySelectorAll(".tab-button").forEach((button) => button.setAttribute("aria-selected", String(button === selectedButton)));
@@ -908,8 +909,9 @@
         const title = document.createElement("h2");
         title.textContent = interest.materialDescription;
         const status = document.createElement("span");
-        status.className = "status";
-        status.textContent = "Recebido";
+        const statusInformation = interestStatusLabels[interest.status] || interestStatusLabels.received;
+        status.className = `status ${statusInformation.className}`.trim();
+        status.textContent = statusInformation.label;
         cardHeader.append(title, status);
         const details = document.createElement("dl");
         details.className = "details";
@@ -923,6 +925,8 @@
         addDetail(details, "Prazo", deadlineLabels[interest.deadline]);
         addDetail(details, "Assunto", subjectLabels[interest.subject]);
         addDetail(details, "Recebido em", new Intl.DateTimeFormat("pt-BR", { dateStyle: "long", timeStyle: "short" }).format(new Date(interest.createdAt)));
+        if (interest.decidedAt) addDetail(details, "Decidido em", new Intl.DateTimeFormat("pt-BR", { dateStyle: "long", timeStyle: "short" }).format(new Date(interest.decidedAt)));
+        if (interest.status === "rejected") addDetail(details, "Motivo da rejeição", interest.rejectionReason);
         article.append(cardHeader, details);
         if (interest.note) {
           const noteTitle = document.createElement("h3");
@@ -931,6 +935,65 @@
           note.className = "interest-note";
           note.textContent = interest.note;
           article.append(noteTitle, note);
+        }
+        if (interest.status === "received") {
+          const review = document.createElement("section");
+          review.className = "material-review";
+          const actions = document.createElement("div");
+          actions.className = "actions";
+          const accept = document.createElement("button");
+          accept.className = "action-button approve-button";
+          accept.type = "button";
+          accept.textContent = "Aceitar para intermediação";
+          const reject = document.createElement("button");
+          reject.className = "action-button reject-button";
+          reject.type = "button";
+          reject.textContent = "Rejeitar interesse";
+          actions.append(accept, reject);
+          const rejectionForm = document.createElement("div");
+          rejectionForm.hidden = true;
+          const reasonLabel = document.createElement("label");
+          reasonLabel.textContent = "Motivo da rejeição *";
+          const reason = document.createElement("textarea");
+          reason.maxLength = 500;
+          reason.placeholder = "Explique ao comprador por que o interesse foi rejeitado.";
+          const confirmReject = document.createElement("button");
+          confirmReject.className = "action-button reject-button";
+          confirmReject.type = "button";
+          confirmReject.textContent = "Confirmar rejeição";
+          rejectionForm.append(reasonLabel, reason, confirmReject);
+          const feedback = document.createElement("p");
+          feedback.className = "feedback";
+          feedback.role = "status";
+          feedback.tabIndex = -1;
+          feedback.hidden = true;
+
+          async function decide(decision) {
+            if (decision === "rejected" && !reason.value.trim()) { reason.setCustomValidity("Informe o motivo da rejeição."); reason.reportValidity(); return; }
+            reason.setCustomValidity("");
+            accept.disabled = true; reject.disabled = true; confirmReject.disabled = true; feedback.hidden = true;
+            try {
+              const response = await fetch(`/api/interesses/${interest.id}`, { method: "PATCH", headers: { "Content-Type": "application/json", Accept: "application/json" }, body: JSON.stringify({ status: decision, rejectionReason: reason.value }) });
+              const result = await response.json();
+              if (!response.ok) throw new Error(result.message || "Não foi possível salvar a decisão.");
+              Object.assign(interest, result.interest);
+              article.replaceWith(createInterestCard(interest));
+              newInterestCount.textContent = Math.max(0, Number(newInterestCount.textContent) - 1);
+            } catch (error) {
+              feedback.textContent = error.message; feedback.hidden = false; feedback.focus();
+              accept.disabled = false; reject.disabled = false; confirmReject.disabled = false;
+            }
+          }
+          accept.addEventListener("click", () => decide("in_intermediation"));
+          reject.addEventListener("click", () => { rejectionForm.hidden = false; reason.focus(); });
+          confirmReject.addEventListener("click", () => decide("rejected"));
+          review.append(actions, rejectionForm, feedback);
+          article.append(review);
+        } else if (interest.status === "in_intermediation") {
+          const nextStep = document.createElement("p");
+          nextStep.className = "interest-note";
+          nextStep.textContent = "Próxima etapa: solicitar uma resposta estruturada da empresa vendedora.";
+          article.append(nextStep);
         }
         return article;
       }

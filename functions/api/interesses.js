@@ -27,10 +27,17 @@ async function listInterests(env) {
 export async function onRequestGet(context) {
   if (!context.env.CADASTROS) return error("O armazenamento ainda não está configurado.", 503);
   const session = await getSession(context.request, context.env);
-  if (session?.role !== "admin") return error("Acesso administrativo necessário.", 403);
+  if (!session || !["admin", "company"].includes(session.role)) return error("Acesso necessário.", 403);
 
   try {
     const interests = await listInterests(context.env);
+    if (session.role === "company") {
+      const ownInterests = interests
+        .filter((item) => item.buyerCompanyId === session.companyId)
+        .map(({ sellerCompanyId, buyerCompanyId, ...item }) => item)
+        .sort((first, second) => second.createdAt.localeCompare(first.createdAt));
+      return Response.json({ interests: ownInterests }, { headers: { "Cache-Control": "private, no-store" } });
+    }
     const companyIds = [...new Set(interests.flatMap((item) => [item.buyerCompanyId, item.sellerCompanyId]))];
     const companies = await Promise.all(companyIds.map((id) => context.env.CADASTROS.get(`cadastro:${id}:dados`, "json")));
     const companiesById = new Map(companies.filter(Boolean).map((company) => [company.id, company]));

@@ -131,6 +131,12 @@
         <ul id="sent-list" class="material-list"></ul>
       </section>
 
+      <section class="panel" aria-labelledby="interests-title">
+        <h2 id="interests-title">Meus interesses</h2>
+        <p id="empty-interests" class="introduction">Nenhum interesse registrado.</p>
+        <ul id="interest-list" class="material-list"></ul>
+      </section>
+
       <form class="logout" action="/api/logout" method="post"><button class="secondary" type="submit">Sair</button></form>
     </main>
 
@@ -157,6 +163,8 @@
       const sentList = document.querySelector("#sent-list");
       const emptyDraft = document.querySelector("#empty-draft");
       const emptySent = document.querySelector("#empty-sent");
+      const interestList = document.querySelector("#interest-list");
+      const emptyInterests = document.querySelector("#empty-interests");
       const submitMaterials = document.querySelector("#submit-materials");
       const clearDraft = document.querySelector("#clear-draft");
       const submissionMessage = document.querySelector("#submission-message");
@@ -183,6 +191,9 @@
       const conditionLabels = { new: "Novo", used: "Usado", refurbished: "Recondicionado", scrap: "Sucata" };
       const unitLabels = { unit: "Unidade", lot: "Lote", kg: "Quilograma", meter: "Metro", square_meter: "Metro quadrado (m²)", cubic_meter: "Metro cúbico (m³)", liter: "Litro" };
       const statusLabels = { pending: "Aguardando análise", approved: "Aprovado", rejected: "Rejeitado" };
+      const interestStatusLabels = { received: "Recebido", in_intermediation: "Em intermediação", rejected: "Rejeitado" };
+      const deadlineLabels = { immediate: "Imediato", "7_days": "Em até 7 dias", "15_days": "Em até 15 dias", "30_days": "Em até 30 dias", flexible: "Prazo flexível" };
+      const subjectLabels = { availability: "Confirmar disponibilidade", technical: "Dúvida técnica", commercial: "Condição comercial", documentation: "Documentação ou certificado", other: "Outro assunto" };
       const americanNumber = new Intl.NumberFormat("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
       const money = { format: (value) => `US$ ${americanNumber.format(value)}` };
 
@@ -580,6 +591,48 @@
         }
       }
 
+      function createInterestCard(interest) {
+        const item = document.createElement("li");
+        item.className = "material-card";
+        const header = document.createElement("div");
+        header.className = "material-header";
+        const title = document.createElement("h3");
+        title.textContent = interest.materialDescription;
+        const status = document.createElement("span");
+        status.className = "status-pill";
+        status.textContent = interestStatusLabels[interest.status] || "Recebido";
+        header.append(title, status);
+        const unitName = interest.unit === "other" ? interest.otherUnit : unitLabels[interest.unit];
+        const information = document.createElement("p");
+        information.textContent = `Quantidade: ${interest.quantity} ${unitName || ""} · Prazo: ${deadlineLabels[interest.deadline]} · Assunto: ${subjectLabels[interest.subject]}`;
+        item.append(header, information);
+        if (interest.partNumber) {
+          const partNumber = document.createElement("p");
+          partNumber.textContent = `Part number: ${interest.partNumber}`;
+          item.append(partNumber);
+        }
+        if (interest.status === "rejected" && interest.rejectionReason) {
+          const reason = document.createElement("p");
+          reason.className = "message error";
+          reason.textContent = `Motivo da rejeição: ${interest.rejectionReason}`;
+          item.append(reason);
+        }
+        return item;
+      }
+
+      async function loadInterests() {
+        try {
+          const response = await fetch("/api/interesses", { headers: { Accept: "application/json" } });
+          const result = await response.json();
+          if (!response.ok) throw new Error(result.message || "Não foi possível carregar os interesses.");
+          interestList.replaceChildren(...result.interests.map(createInterestCard));
+          emptyInterests.hidden = result.interests.length > 0;
+        } catch (error) {
+          emptyInterests.textContent = error.message;
+          emptyInterests.hidden = false;
+        }
+      }
+
       unit.addEventListener("change", () => {
         const isOther = unit.value === "other";
         otherUnitField.hidden = !isOther;
@@ -688,6 +741,7 @@
       fillSelect(category, [...categories, OTHER_CLASSIFICATION], "Selecione");
       resetEditor();
       loadMaterials();
+      loadInterests();
     </script>
   </body>
 </html>
