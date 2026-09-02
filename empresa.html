@@ -49,12 +49,19 @@
       .material-values { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 14px; font-size: 0.82rem; }
       .card-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
       .status-pill { padding: 6px 9px; border: 1px solid #5a5f67; border-radius: 999px; color: var(--silver); font-size: 0.72rem; font-weight: 750; }
+      .reference-data { margin: 16px 0; padding: 14px; border: 1px solid var(--line); border-radius: 11px; background: rgb(9 11 13 / 48%); opacity: .78; }
+      .reference-data h4 { margin: 0 0 11px; color: var(--silver); font-size: .82rem; text-transform: uppercase; letter-spacing: .06em; }
+      .reference-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+      .reference-item span { display: block; color: var(--muted); font-size: .7rem; }
+      .reference-item strong { display: block; margin-top: 3px; color: var(--text); font-size: .84rem; overflow-wrap: anywhere; }
+      .stock-warning { margin: 10px 0 0; color: var(--danger); font-size: .8rem; font-weight: 700; }
       .list-actions { display: grid; gap: 10px; margin-top: 16px; }
       .message { margin: 16px 0 0; padding: 12px; border: 1px solid var(--line); border-radius: 10px; color: var(--muted); line-height: 1.45; text-align: center; }
       .message.success { border-color: #57735c; color: var(--success); }
       .message.error { border-color: #805858; color: var(--danger); }
       .message[hidden], [hidden] { display: none !important; }
       .logout { margin-top: 22px; text-align: center; }
+      @media (max-width: 430px) { .reference-grid { grid-template-columns: 1fr; } }
       @media (min-width: 700px) { main { padding-top: 48px; } .panel { padding: 28px; } .fields { grid-template-columns: repeat(2, minmax(0, 1fr)); } .field-wide { grid-column: 1 / -1; } .calculations { grid-template-columns: repeat(3, minmax(0, 1fr)); } .list-actions { grid-template-columns: 1fr 1fr; } }
     </style>
   </head>
@@ -716,6 +723,26 @@
         information.textContent = `${perspective} · Quantidade: ${negotiation.quantity} ${unitName || ""} · Prazo: ${deadlineLabels[negotiation.deadline]}`;
         item.append(header, information);
         if (negotiation.partNumber) { const partNumber = document.createElement("p"); partNumber.textContent = `Part number: ${negotiation.partNumber}`; item.append(partNumber); }
+        if (negotiation.perspective === "seller" && negotiation.advertised) {
+          const reference = document.createElement("section");
+          reference.className = "reference-data";
+          const referenceTitle = document.createElement("h4");
+          referenceTitle.textContent = "Dados atuais do anúncio — somente para consulta";
+          const grid = document.createElement("div");
+          grid.className = "reference-grid";
+          const advertisedUnit = negotiation.advertised.unit === "other" ? negotiation.advertised.otherUnit : unitLabels[negotiation.advertised.unit];
+          const addReference = (label, value) => { const field = document.createElement("div"); field.className = "reference-item"; const name = document.createElement("span"); name.textContent = label; const content = document.createElement("strong"); content.textContent = value || "Não informado"; field.append(name, content); grid.append(field); };
+          addReference("Descrição", negotiation.materialDescription);
+          addReference("Part number", negotiation.partNumber);
+          addReference("Fabricante", negotiation.advertised.manufacturer);
+          addReference("Condição", conditionLabels[negotiation.advertised.condition]);
+          addReference("Estoque cadastrado", `${negotiation.advertised.quantity} ${advertisedUnit || ""}`.trim());
+          addReference("Preço final cadastrado", money.format(negotiation.advertised.unitPriceCents / 100));
+          addReference("Possui certificado", negotiation.advertised.hasCertificate ? "Sim" : "Não");
+          reference.append(referenceTitle, grid);
+          if (Number(negotiation.quantity) > Number(negotiation.advertised.quantity)) { const warning = document.createElement("p"); warning.className = "stock-warning"; warning.textContent = "A quantidade solicitada é maior que o estoque atualmente anunciado."; reference.append(warning); }
+          item.append(reference);
+        }
         if (!sold && negotiation.perspective === "seller" && negotiation.status === "awaiting_seller") {
           const form = document.createElement("form");
           form.className = "fields";
@@ -728,6 +755,12 @@
           const confirmedPrice = document.createElement("input"); confirmedPrice.type = "text"; confirmedPrice.inputMode = "decimal"; confirmedPrice.placeholder = "0.00"; confirmedPrice.required = true;
           const documentation = document.createElement("select"); documentation.required = true; documentation.append(new Option("Selecione", ""), new Option("Sim", "yes"), new Option("Não", "no"));
           const note = document.createElement("textarea"); note.maxLength = 800; note.placeholder = "Não informe e-mail, telefone, link ou nome da empresa.";
+          if (negotiation.advertised) {
+            availability.value = "available";
+            confirmedQuantity.value = Math.min(Number(negotiation.quantity), Number(negotiation.advertised.quantity));
+            confirmedPrice.value = americanNumber.format(negotiation.advertised.unitPriceCents / 100);
+            documentation.value = negotiation.advertised.hasCertificate ? "yes" : "no";
+          }
           const addField = (labelText, control, wide = false) => { const field = document.createElement("div"); if (wide) field.className = "field-wide"; const label = document.createElement("label"); label.textContent = labelText; field.append(label, control); form.append(field); };
           addField("Disponibilidade confirmada *", availability);
           addField("Quantidade confirmada *", confirmedQuantity);

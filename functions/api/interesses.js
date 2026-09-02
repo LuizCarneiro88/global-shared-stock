@@ -34,13 +34,31 @@ export async function onRequestGet(context) {
     if (session.role === "company") {
       const safe = ({ sellerCompanyId, buyerCompanyId, ...item }) => item;
       const safeForBuyer = (item) => { const { sellerResponse, ...visible } = safe(item); return visible; };
+      const related = interests.filter((item) => [item.buyerCompanyId, item.sellerCompanyId].includes(session.companyId));
+      const materialIds = [...new Set(related.map((item) => item.materialId))];
+      const advertisements = await Promise.all(materialIds.map((id) => context.env.CADASTROS.get(`anuncio:${id}`, "json")));
+      const advertisementsById = new Map(advertisements.filter(Boolean).map((advertisement) => [advertisement.id, advertisement]));
+      const companyView = (item) => {
+        const perspective = item.buyerCompanyId === session.companyId ? "buyer" : "seller";
+        const advertisement = advertisementsById.get(item.materialId);
+        const advertised = perspective === "seller" && advertisement ? {
+          manufacturer: advertisement.manufacturer || "",
+          condition: advertisement.condition,
+          quantity: advertisement.quantity,
+          unit: advertisement.unit,
+          otherUnit: advertisement.otherUnit || "",
+          unitPriceCents: advertisement.unitPriceCents,
+          hasCertificate: Boolean(advertisement.hasCertificate),
+        } : undefined;
+        return { ...(perspective === "buyer" ? safeForBuyer(item) : safe(item)), perspective, ...(advertised ? { advertised } : {}) };
+      };
       const ownInterests = interests.filter((item) => item.buyerCompanyId === session.companyId).map(safeForBuyer);
       const negotiations = interests
         .filter((item) => ["in_intermediation", "awaiting_seller", "seller_response_received"].includes(item.status) && [item.buyerCompanyId, item.sellerCompanyId].includes(session.companyId))
-        .map((item) => ({ ...(item.buyerCompanyId === session.companyId ? safeForBuyer(item) : safe(item)), perspective: item.buyerCompanyId === session.companyId ? "buyer" : "seller" }));
+        .map(companyView);
       const soldMaterials = interests
         .filter((item) => item.status === "sold" && [item.buyerCompanyId, item.sellerCompanyId].includes(session.companyId))
-        .map((item) => ({ ...safe(item), perspective: item.buyerCompanyId === session.companyId ? "buyer" : "seller" }));
+        .map(companyView);
       [ownInterests, negotiations, soldMaterials].forEach((list) => list.sort((first, second) => second.createdAt.localeCompare(first.createdAt)));
       return Response.json({ interests: ownInterests, negotiations, soldMaterials }, { headers: { "Cache-Control": "private, no-store" } });
     }
