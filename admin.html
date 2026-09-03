@@ -515,9 +515,10 @@
       const money = { format: (value) => `US$ ${americanNumber.format(value)}` };
       const deadlineLabels = { immediate: "Imediato", "7_days": "Em até 7 dias", "15_days": "Em até 15 dias", "30_days": "Em até 30 dias", flexible: "Prazo flexível" };
       const subjectLabels = { availability: "Confirmar disponibilidade", technical: "Dúvida técnica", commercial: "Condição comercial", documentation: "Documentação ou certificado", other: "Outro assunto" };
-      const interestStatusLabels = { received: { label: "Recebido", className: "" }, resubmitted: { label: "Reenviado para avaliação", className: "" }, in_intermediation: { label: "Em intermediação", className: "approved" }, awaiting_seller: { label: "Aguardando vendedor", className: "" }, seller_response_received: { label: "Resposta recebida", className: "approved" }, seller_correction_requested: { label: "Correção solicitada ao vendedor", className: "" }, response_shared: { label: "Encaminhada ao comprador", className: "approved" }, rejected: { label: "Rejeitado", className: "rejected" } };
+      const interestStatusLabels = { received: { label: "Recebido", className: "" }, resubmitted: { label: "Reenviado para avaliação", className: "" }, in_intermediation: { label: "Em intermediação", className: "approved" }, awaiting_seller: { label: "Aguardando vendedor", className: "" }, seller_response_received: { label: "Resposta recebida", className: "approved" }, seller_correction_requested: { label: "Correção solicitada ao vendedor", className: "" }, response_shared: { label: "Encaminhada ao comprador", className: "approved" }, buyer_accepted: { label: "Condições aceitas", className: "approved" }, buyer_adjustment_requested: { label: "Ajuste solicitado", className: "" }, closed_no_sale: { label: "Encerrada sem venda", className: "rejected" }, rejected: { label: "Rejeitado", className: "rejected" } };
       const sellerAvailabilityLabels = { available: "Disponível", partial: "Parcialmente disponível", unavailable: "Indisponível" };
       const sellerDeadlineLabels = { immediate: "Imediato", "7_days": "Em até 7 dias", "15_days": "Em até 15 dias", "30_days": "Em até 30 dias", over_30_days: "Acima de 30 dias", not_applicable: "Não se aplica" };
+      const adjustmentTopicLabels = { quantity: "Quantidade", price: "Preço", deadline: "Prazo", documentation: "Documentação" };
 
       function selectTab(selectedButton, selectedPanel) {
         document.querySelectorAll(".tab-button").forEach((button) => button.setAttribute("aria-selected", String(button === selectedButton)));
@@ -935,6 +936,7 @@
         if (interest.responseSharedAt) addDetail(details, "Encaminhada ao comprador em", new Intl.DateTimeFormat("pt-BR", { dateStyle: "long", timeStyle: "short" }).format(new Date(interest.responseSharedAt)));
         if (interest.sellerCorrectionReason) addDetail(details, "Correção solicitada", interest.sellerCorrectionReason);
         if (Array.isArray(interest.sellerResponseHistory) && interest.sellerResponseHistory.length) addDetail(details, "Respostas anteriores do vendedor", String(interest.sellerResponseHistory.length));
+        if (interest.buyerDecision?.decidedAt) addDetail(details, "Decisão da compradora em", new Intl.DateTimeFormat("pt-BR", { dateStyle: "long", timeStyle: "short" }).format(new Date(interest.buyerDecision.decidedAt)));
         article.append(cardHeader, details);
         if (interest.note) {
           const noteTitle = document.createElement("h3");
@@ -957,6 +959,21 @@
           addDetail(responseDetails, "Respondido em", new Intl.DateTimeFormat("pt-BR", { dateStyle: "long", timeStyle: "short" }).format(new Date(interest.sellerResponse.respondedAt)));
           article.append(responseTitle, responseDetails);
           if (interest.sellerResponse.note) { const responseNote = document.createElement("p"); responseNote.className = "interest-note"; responseNote.textContent = interest.sellerResponse.note; article.append(responseNote); }
+        }
+        if (interest.buyerDecision) {
+          const decisionTitle = document.createElement("h3"); decisionTitle.textContent = "Decisão da empresa compradora";
+          const decisionDetails = document.createElement("dl"); decisionDetails.className = "details";
+          if (interest.buyerDecision.type === "accepted") addDetail(decisionDetails, "Decisão", "Condições aceitas");
+          if (interest.buyerDecision.type === "rejected") { addDetail(decisionDetails, "Decisão", "Condições recusadas"); addDetail(decisionDetails, "Motivo", interest.buyerDecision.reason); }
+          if (interest.buyerDecision.type === "adjustment_requested") {
+            addDetail(decisionDetails, "Decisão", "Solicitou ajuste");
+            addDetail(decisionDetails, "Itens para ajuste", interest.buyerDecision.topics.map((topic) => adjustmentTopicLabels[topic]).join(", "));
+            if (interest.buyerDecision.requestedQuantity) addDetail(decisionDetails, "Quantidade desejada", `${interest.buyerDecision.requestedQuantity} ${unit || ""}`.trim());
+            if (interest.buyerDecision.requestedUnitPriceCents) addDetail(decisionDetails, "Preço desejado", money.format(interest.buyerDecision.requestedUnitPriceCents / 100));
+            if (interest.buyerDecision.requestedDeadline) addDetail(decisionDetails, "Prazo desejado", sellerDeadlineLabels[interest.buyerDecision.requestedDeadline]);
+            addDetail(decisionDetails, "Explicação", interest.buyerDecision.note);
+          }
+          article.append(decisionTitle, decisionDetails);
         }
         if (["received", "resubmitted"].includes(interest.status)) {
           const review = document.createElement("section");
@@ -1061,6 +1078,12 @@
           const nextStep = document.createElement("p"); nextStep.className = "interest-note"; nextStep.textContent = "Aguardando a resposta corrigida da empresa vendedora."; article.append(nextStep);
         } else if (interest.status === "response_shared") {
           const nextStep = document.createElement("p"); nextStep.className = "interest-note"; nextStep.textContent = "Resposta encaminhada à compradora com a identidade da vendedora protegida."; article.append(nextStep);
+        } else if (interest.status === "buyer_accepted") {
+          const nextStep = document.createElement("p"); nextStep.className = "interest-note"; nextStep.textContent = "A compradora aceitou as condições. A negociação está pronta para formalização manual."; article.append(nextStep);
+        } else if (interest.status === "buyer_adjustment_requested") {
+          const nextStep = document.createElement("p"); nextStep.className = "interest-note"; nextStep.textContent = "O pedido de ajuste está retido para revisão administrativa e ainda não foi encaminhado à vendedora."; article.append(nextStep);
+        } else if (interest.status === "closed_no_sale") {
+          const nextStep = document.createElement("p"); nextStep.className = "interest-note"; nextStep.textContent = "Negociação encerrada sem venda por decisão da compradora."; article.append(nextStep);
         }
         return article;
       }

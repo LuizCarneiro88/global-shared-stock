@@ -6,6 +6,7 @@ const DEADLINES = new Set(["immediate", "7_days", "15_days", "30_days", "flexibl
 const SUBJECTS = new Set(["availability", "technical", "commercial", "documentation", "other"]);
 const AVAILABILITY = new Set(["available", "partial", "unavailable"]);
 const SELLER_DEADLINES = new Set(["immediate", "7_days", "15_days", "30_days", "over_30_days", "not_applicable"]);
+const ADJUSTMENT_TOPICS = new Set(["quantity", "price", "deadline", "documentation"]);
 
 function error(message, status = 400) {
   return Response.json({ message }, { status, headers: { "Cache-Control": "no-store" } });
@@ -53,6 +54,45 @@ export async function onRequestPatch(context) {
       return Response.json({ success: true, interest: safeInterest, message: "Resposta enviada para análise da Global Shared Stock." }, { headers: { "Cache-Control": "no-store" } });
     }
     if (interest.buyerCompanyId !== session.companyId) return error("Somente a empresa responsável por esta etapa pode atualizar a solicitação.", 403);
+    if (interest.status === "response_shared") {
+      const buyerAction = String(input.buyerAction || "");
+      const decidedAt = new Date().toISOString();
+      if (buyerAction === "accept") {
+        const updated = { ...interest, status: "buyer_accepted", buyerDecision: { type: "accepted", decidedAt } };
+        await context.env.CADASTROS.put(key, JSON.stringify(updated));
+        const { sellerCompanyId, buyerCompanyId, sellerResponseHistory, sellerCorrectionReason, ...safeInterest } = updated;
+        return Response.json({ success: true, interest: safeInterest, message: "Condições aceitas. A Global Shared Stock seguirá com a formalização." }, { headers: { "Cache-Control": "no-store" } });
+      }
+      if (buyerAction === "reject") {
+        const reason = String(input.reason || "").trim().replace(/\s+/g, " ").slice(0, 500);
+        if (!reason) return error("Informe o motivo da recusa.");
+        if (containsDirectContact(reason)) return error("O motivo não pode conter e-mail, telefone ou link.");
+        const updated = { ...interest, status: "closed_no_sale", buyerDecision: { type: "rejected", reason, decidedAt } };
+        await context.env.CADASTROS.put(key, JSON.stringify(updated));
+        const { sellerCompanyId, buyerCompanyId, sellerResponseHistory, sellerCorrectionReason, ...safeInterest } = updated;
+        return Response.json({ success: true, interest: safeInterest, message: "Condições recusadas. A negociação foi encerrada sem venda." }, { headers: { "Cache-Control": "no-store" } });
+      }
+      if (buyerAction === "request_adjustment") {
+        const topics = [...new Set(Array.isArray(input.topics) ? input.topics.map(String) : [])];
+        const note = String(input.note || "").trim().replace(/\s+/g, " ").slice(0, 800);
+        if (!topics.length || topics.some((topic) => !ADJUSTMENT_TOPICS.has(topic))) return error("Selecione ao menos um item para ajuste.");
+        if (!note) return error("Explique o ajuste solicitado.");
+        if (containsDirectContact(note)) return error("A solicitação não pode conter e-mail, telefone ou link.");
+        const requestedQuantity = topics.includes("quantity") ? Number(input.requestedQuantity) : null;
+        const requestedUnitPriceCents = topics.includes("price") ? Number(input.requestedUnitPriceCents) : null;
+        const requestedDeadline = topics.includes("deadline") ? String(input.requestedDeadline || "") : "";
+        if (topics.includes("quantity") && (!Number.isFinite(requestedQuantity) || requestedQuantity <= 0)) return error("Informe a quantidade desejada.");
+        if (topics.includes("quantity") && requestedQuantity > Number(interest.sellerResponse.confirmedQuantity)) return error("A quantidade solicitada não pode superar a quantidade confirmada pelo vendedor.");
+        if (topics.includes("price") && (!Number.isInteger(requestedUnitPriceCents) || requestedUnitPriceCents <= 0)) return error("Informe o preço desejado.");
+        if (topics.includes("deadline") && (!SELLER_DEADLINES.has(requestedDeadline) || requestedDeadline === "not_applicable")) return error("Selecione o prazo desejado.");
+        const buyerDecision = { type: "adjustment_requested", topics, note, requestedQuantity, requestedUnitPriceCents, requestedDeadline, decidedAt };
+        const updated = { ...interest, status: "buyer_adjustment_requested", buyerDecision };
+        await context.env.CADASTROS.put(key, JSON.stringify(updated));
+        const { sellerCompanyId, buyerCompanyId, sellerResponseHistory, sellerCorrectionReason, ...safeInterest } = updated;
+        return Response.json({ success: true, interest: safeInterest, message: "Pedido de ajuste enviado para análise da Global Shared Stock." }, { headers: { "Cache-Control": "no-store" } });
+      }
+      return error("Selecione uma decisão válida.");
+    }
     if (interest.status !== "rejected") return error("Somente interesses rejeitados podem ser editados.", 409);
     const quantity = Number(input.quantity);
     const deadline = String(input.deadline || "");

@@ -36,9 +36,13 @@ export async function onRequestGet(context) {
       const safeForBuyer = (item) => {
         const visible = safe(item);
         const { sellerResponseHistory, sellerCorrectionReason, ...withoutInternalReview } = visible;
-        if (item.status === "response_shared") return withoutInternalReview;
+        if (["response_shared", "buyer_accepted", "buyer_adjustment_requested", "closed_no_sale"].includes(item.status)) return withoutInternalReview;
         const { sellerResponse, ...protectedItem } = withoutInternalReview;
         return protectedItem;
+      };
+      const safeForSeller = (item) => {
+        const { buyerDecision, ...visible } = safe(item);
+        return ["buyer_accepted", "buyer_adjustment_requested"].includes(item.status) ? { ...visible, status: "buyer_review_pending_admin" } : visible;
       };
       const related = interests.filter((item) => [item.buyerCompanyId, item.sellerCompanyId].includes(session.companyId));
       const materialIds = [...new Set(related.map((item) => item.materialId))];
@@ -56,11 +60,11 @@ export async function onRequestGet(context) {
           unitPriceCents: advertisement.unitPriceCents,
           hasCertificate: Boolean(advertisement.hasCertificate),
         } : undefined;
-        return { ...(perspective === "buyer" ? safeForBuyer(item) : safe(item)), perspective, ...(advertised ? { advertised } : {}) };
+        return { ...(perspective === "buyer" ? safeForBuyer(item) : safeForSeller(item)), perspective, ...(advertised ? { advertised } : {}) };
       };
       const ownInterests = interests.filter((item) => item.buyerCompanyId === session.companyId).map(safeForBuyer);
       const negotiations = interests
-        .filter((item) => ["in_intermediation", "awaiting_seller", "seller_response_received", "seller_correction_requested", "response_shared"].includes(item.status) && [item.buyerCompanyId, item.sellerCompanyId].includes(session.companyId))
+        .filter((item) => ["in_intermediation", "awaiting_seller", "seller_response_received", "seller_correction_requested", "response_shared", "buyer_accepted", "buyer_adjustment_requested"].includes(item.status) && [item.buyerCompanyId, item.sellerCompanyId].includes(session.companyId))
         .map(companyView);
       const soldMaterials = interests
         .filter((item) => item.status === "sold" && [item.buyerCompanyId, item.sellerCompanyId].includes(session.companyId))
