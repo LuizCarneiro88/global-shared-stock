@@ -194,6 +194,12 @@ export async function onRequestPatch(context) {
     await context.env.CADASTROS.put(key, JSON.stringify(updated));
     return Response.json({ success: true, interest: updated }, { headers: { "Cache-Control": "no-store" } });
   }
+  if (status === "agreement_confirmed") {
+    if (interest.status !== "seller_adjustment_response_received" || interest.sellerAdjustmentResponse?.type !== "accepted") return error("Não há um ajuste aceito pronto para confirmação.", 409);
+    const updated = { ...interest, status: "agreement_confirmed", agreementConfirmedAt: new Date().toISOString() };
+    await context.env.CADASTROS.put(key, JSON.stringify(updated));
+    return Response.json({ success: true, interest: updated, message: "Acordo confirmado. A negociação seguirá para formalização." }, { headers: { "Cache-Control": "no-store" } });
+  }
   if (!DECISIONS.has(status)) return error("Decisão inválida.");
   if (status === "rejected" && !rejectionReason) return error("Informe o motivo da rejeição.");
 
