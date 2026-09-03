@@ -218,7 +218,7 @@
       const conditionLabels = { new: "Novo", used: "Usado", refurbished: "Recondicionado", scrap: "Sucata" };
       const unitLabels = { unit: "Unidade", lot: "Lote", kg: "Quilograma", meter: "Metro", square_meter: "Metro quadrado (m²)", cubic_meter: "Metro cúbico (m³)", liter: "Litro" };
       const statusLabels = { pending: "Aguardando análise", approved: "Aprovado", rejected: "Rejeitado" };
-      const interestStatusLabels = { received: "Recebido", resubmitted: "Reenviado para avaliação", in_intermediation: "Em intermediação", awaiting_seller: "Aguardando resposta do vendedor", seller_response_received: "Resposta em análise pela Global Shared Stock", seller_correction_requested: "Correção solicitada ao vendedor", response_shared: "Resposta do vendedor recebida", buyer_accepted: "Condições aceitas", buyer_adjustment_requested: "Ajuste em análise", buyer_review_pending_admin: "Atualização em análise", closed_no_sale: "Encerrado sem venda", rejected: "Rejeitado", sold: "Vendido" };
+      const interestStatusLabels = { received: "Recebido", resubmitted: "Reenviado para avaliação", in_intermediation: "Em intermediação", awaiting_seller: "Aguardando resposta do vendedor", seller_response_received: "Resposta em análise pela Global Shared Stock", seller_correction_requested: "Correção solicitada ao vendedor", response_shared: "Resposta do vendedor recebida", buyer_accepted: "Condições aceitas", buyer_adjustment_requested: "Ajuste em análise", buyer_adjustment_correction_requested: "Correção solicitada", seller_adjustment_requested: "Aguardando resposta ao ajuste", seller_adjustment_response_received: "Resposta ao ajuste em análise", buyer_review_pending_admin: "Atualização em análise", closed_no_sale: "Encerrado sem venda", rejected: "Rejeitado", sold: "Vendido" };
       const sellerAvailabilityLabels = { available: "Disponível", partial: "Parcialmente disponível", unavailable: "Indisponível" };
       const sellerDeadlineLabels = { immediate: "Imediato", "7_days": "Em até 7 dias", "15_days": "Em até 15 dias", "30_days": "Em até 30 dias", over_30_days: "Acima de 30 dias", not_applicable: "Não se aplica" };
       const deadlineLabels = { immediate: "Imediato", "7_days": "Em até 7 dias", "15_days": "Em até 15 dias", "30_days": "Em até 30 dias", flexible: "Prazo flexível" };
@@ -621,7 +621,7 @@
       }
 
       function appendSharedResponse(container, record, unitName) {
-        if (!["response_shared", "buyer_accepted", "buyer_adjustment_requested", "closed_no_sale"].includes(record.status) || !record.sellerResponse) return;
+        if (!["response_shared", "buyer_accepted", "buyer_adjustment_requested", "buyer_adjustment_correction_requested", "seller_adjustment_requested", "seller_adjustment_response_received", "closed_no_sale"].includes(record.status) || !record.sellerResponse) return;
         const response = document.createElement("section"); response.className = "reference-data shared-response";
         const title = document.createElement("h4"); title.textContent = "Resposta encaminhada pela Global Shared Stock";
         const grid = document.createElement("div"); grid.className = "reference-grid";
@@ -657,7 +657,8 @@
           item.append(partNumber);
         }
         appendSharedResponse(item, interest, unitName);
-        if (interest.status === "response_shared") {
+        if (interest.status === "buyer_adjustment_correction_requested") { const correction = document.createElement("p"); correction.className = "message error"; correction.textContent = `Correção solicitada pela Global Shared Stock: ${interest.buyerAdjustmentCorrectionReason}`; item.append(correction); }
+        if (["response_shared", "buyer_adjustment_correction_requested"].includes(interest.status)) {
           const actions = document.createElement("div"); actions.className = "card-actions";
           const accept = document.createElement("button"); accept.type = "button"; accept.textContent = "Aceitar condições";
           const adjust = document.createElement("button"); adjust.className = "secondary"; adjust.type = "button"; adjust.textContent = "Solicitar ajuste";
@@ -699,6 +700,14 @@
           requestedPrice.addEventListener("input", () => { requestedPrice.value = formatPriceInput(requestedPrice.value); });
           adjustmentForm.addEventListener("submit", (event) => { event.preventDefault(); const topics = Object.entries(topicInputs).filter(([, checkbox]) => checkbox.checked).map(([topic]) => topic); if (!topics.length) { adjustmentFeedback.textContent = "Selecione ao menos um item para ajuste."; adjustmentFeedback.hidden = false; return; } if (!adjustmentForm.reportValidity()) return; sendDecision({ buyerAction: "request_adjustment", topics, requestedQuantity: Number(requestedQuantity.value), requestedUnitPriceCents: priceInCents(requestedPrice.value), requestedDeadline: requestedDeadline.value, note: adjustmentNote.value }, [adjustmentSubmit, adjustmentCancel], adjustmentFeedback); });
           rejectionForm.addEventListener("submit", (event) => { event.preventDefault(); if (!rejectionForm.reportValidity()) return; sendDecision({ buyerAction: "reject", reason: rejectionReason.value }, [rejectionSubmit, rejectionCancel], rejectionFeedback); });
+          if (interest.status === "buyer_adjustment_correction_requested" && interest.buyerDecision) {
+            actions.hidden = true; adjustmentForm.hidden = false;
+            (interest.buyerDecision.topics || []).forEach((topic) => { if (topicInputs[topic]) { topicInputs[topic].checked = true; topicInputs[topic].dispatchEvent(new Event("change")); } });
+            if (interest.buyerDecision.requestedQuantity) requestedQuantity.value = interest.buyerDecision.requestedQuantity;
+            if (interest.buyerDecision.requestedUnitPriceCents) requestedPrice.value = americanNumber.format(interest.buyerDecision.requestedUnitPriceCents / 100);
+            if (interest.buyerDecision.requestedDeadline) requestedDeadline.value = interest.buyerDecision.requestedDeadline;
+            adjustmentNote.value = interest.buyerDecision.note || "";
+          }
           item.append(actions, decisionFeedback, adjustmentForm, rejectionForm);
         }
         if (interest.status === "buyer_accepted") { const message = document.createElement("p"); message.className = "message success"; message.textContent = "Condições aceitas. A Global Shared Stock seguirá com a formalização."; item.append(message); }
@@ -783,7 +792,7 @@
         title.textContent = negotiation.materialDescription;
         const status = document.createElement("span");
         status.className = "status-pill";
-        status.textContent = sold ? "Vendido" : negotiation.status === "awaiting_seller" ? (negotiation.perspective === "seller" ? "Resposta solicitada" : "Aguardando vendedor") : negotiation.status === "seller_response_received" ? (negotiation.perspective === "seller" ? "Resposta enviada" : "Resposta em análise") : negotiation.status === "seller_correction_requested" ? (negotiation.perspective === "seller" ? "Correção solicitada" : "Resposta em correção") : negotiation.status === "response_shared" ? (negotiation.perspective === "seller" ? "Resposta encaminhada" : "Resposta recebida") : negotiation.status === "buyer_review_pending_admin" ? "Atualização em análise" : negotiation.status === "buyer_accepted" ? "Condições aceitas" : negotiation.status === "buyer_adjustment_requested" ? "Ajuste em análise" : "Em intermediação";
+        status.textContent = sold ? "Vendido" : negotiation.status === "awaiting_seller" ? (negotiation.perspective === "seller" ? "Resposta solicitada" : "Aguardando vendedor") : negotiation.status === "seller_response_received" ? (negotiation.perspective === "seller" ? "Resposta enviada" : "Resposta em análise") : negotiation.status === "seller_correction_requested" ? (negotiation.perspective === "seller" ? "Correção solicitada" : "Resposta em correção") : negotiation.status === "response_shared" ? (negotiation.perspective === "seller" ? "Resposta encaminhada" : "Resposta recebida") : negotiation.status === "seller_adjustment_requested" ? "Ajuste recebido" : negotiation.status === "seller_adjustment_response_received" ? "Resposta ao ajuste enviada" : negotiation.status === "buyer_adjustment_correction_requested" ? "Ajuste em correção" : negotiation.status === "buyer_review_pending_admin" ? "Atualização em análise" : negotiation.status === "buyer_accepted" ? "Condições aceitas" : negotiation.status === "buyer_adjustment_requested" ? "Ajuste em análise" : "Em intermediação";
         header.append(title, status);
         const unitName = negotiation.unit === "other" ? negotiation.otherUnit : unitLabels[negotiation.unit];
         const information = document.createElement("p");
@@ -811,6 +820,50 @@
           reference.append(referenceTitle, grid);
           if (Number(negotiation.quantity) > Number(negotiation.advertised.quantity)) { const warning = document.createElement("p"); warning.className = "stock-warning"; warning.textContent = "A quantidade solicitada é maior que o estoque atualmente anunciado."; reference.append(warning); }
           item.append(reference);
+        }
+        if (!sold && negotiation.perspective === "seller" && negotiation.status === "seller_adjustment_requested" && negotiation.buyerDecision) {
+          const proposal = document.createElement("section"); proposal.className = "reference-data shared-response";
+          const proposalTitle = document.createElement("h4"); proposalTitle.textContent = "Ajuste solicitado — identidade protegida";
+          const proposalGrid = document.createElement("div"); proposalGrid.className = "reference-grid";
+          const topicLabels = { quantity: "Quantidade", price: "Preço", deadline: "Prazo", documentation: "Documentação" };
+          const addProposal = (label, value) => { const field = document.createElement("div"); field.className = "reference-item"; const name = document.createElement("span"); name.textContent = label; const content = document.createElement("strong"); content.textContent = value; field.append(name, content); proposalGrid.append(field); };
+          addProposal("Itens solicitados", negotiation.buyerDecision.topics.map((topic) => topicLabels[topic]).join(", "));
+          if (negotiation.buyerDecision.requestedQuantity) addProposal("Quantidade desejada", `${negotiation.buyerDecision.requestedQuantity} ${unitName || ""}`.trim());
+          if (negotiation.buyerDecision.requestedUnitPriceCents) addProposal("Preço desejado", money.format(negotiation.buyerDecision.requestedUnitPriceCents / 100));
+          if (negotiation.buyerDecision.requestedDeadline) addProposal("Prazo desejado", sellerDeadlineLabels[negotiation.buyerDecision.requestedDeadline]);
+          proposal.append(proposalTitle, proposalGrid);
+          const explanation = document.createElement("p"); explanation.textContent = negotiation.buyerDecision.note; proposal.append(explanation); item.append(proposal);
+          const actions = document.createElement("div"); actions.className = "card-actions";
+          const accept = document.createElement("button"); accept.type = "button"; accept.textContent = "Aceitar ajuste";
+          const counter = document.createElement("button"); counter.className = "secondary"; counter.type = "button"; counter.textContent = "Enviar contraproposta";
+          const reject = document.createElement("button"); reject.className = "danger"; reject.type = "button"; reject.textContent = "Recusar ajuste";
+          actions.append(accept, counter, reject);
+          const commonFeedback = document.createElement("p"); commonFeedback.className = "message error"; commonFeedback.hidden = true;
+          const rejectionForm = document.createElement("form"); rejectionForm.className = "fields"; rejectionForm.hidden = true;
+          const rejectionReason = document.createElement("textarea"); rejectionReason.className = "field-wide"; rejectionReason.required = true; rejectionReason.maxLength = 500; rejectionReason.placeholder = "Informe o motivo. Não inclua dados de contato.";
+          const rejectionSubmit = document.createElement("button"); rejectionSubmit.type = "submit"; rejectionSubmit.textContent = "Confirmar recusa";
+          const rejectionCancel = document.createElement("button"); rejectionCancel.className = "secondary"; rejectionCancel.type = "button"; rejectionCancel.textContent = "Cancelar";
+          const rejectionFeedback = document.createElement("p"); rejectionFeedback.className = "message error field-wide"; rejectionFeedback.hidden = true;
+          rejectionForm.append(rejectionReason, rejectionSubmit, rejectionCancel, rejectionFeedback);
+          const counterForm = document.createElement("form"); counterForm.className = "fields"; counterForm.hidden = true;
+          const counterQuantity = document.createElement("input"); counterQuantity.type = "number"; counterQuantity.inputMode = "decimal"; counterQuantity.min = "0.001"; counterQuantity.step = "0.001"; counterQuantity.required = true; counterQuantity.value = negotiation.sellerResponse.confirmedQuantity;
+          const counterPrice = document.createElement("input"); counterPrice.type = "text"; counterPrice.inputMode = "decimal"; counterPrice.required = true; counterPrice.value = americanNumber.format(negotiation.sellerResponse.confirmedUnitPriceCents / 100);
+          const counterDeadline = document.createElement("select"); counterDeadline.required = true; Object.entries(sellerDeadlineLabels).filter(([value]) => value !== "not_applicable").forEach(([value, label]) => counterDeadline.append(new Option(label, value))); counterDeadline.value = negotiation.sellerResponse.availabilityDeadline;
+          const counterDocumentation = document.createElement("select"); counterDocumentation.required = true; counterDocumentation.append(new Option("Sim", "yes"), new Option("Não", "no")); counterDocumentation.value = negotiation.sellerResponse.documentationAvailable;
+          const counterNote = document.createElement("textarea"); counterNote.required = true; counterNote.maxLength = 800; counterNote.placeholder = "Explique a contraproposta sem dados de contato.";
+          const addCounterField = (labelText, control, wide = false) => { const field = document.createElement("div"); if (wide) field.className = "field-wide"; const label = document.createElement("label"); label.textContent = labelText; field.append(label, control); counterForm.append(field); };
+          addCounterField("Quantidade *", counterQuantity); addCounterField("Preço unitário (US$) *", counterPrice); addCounterField("Prazo *", counterDeadline); addCounterField("Documentação disponível? *", counterDocumentation); addCounterField("Explicação *", counterNote, true);
+          const counterSubmit = document.createElement("button"); counterSubmit.type = "submit"; counterSubmit.textContent = "Enviar contraproposta";
+          const counterCancel = document.createElement("button"); counterCancel.className = "secondary"; counterCancel.type = "button"; counterCancel.textContent = "Cancelar";
+          const counterFeedback = document.createElement("p"); counterFeedback.className = "message error field-wide"; counterFeedback.hidden = true; counterForm.append(counterSubmit, counterCancel, counterFeedback);
+          const sendSellerAdjustment = async (payload, buttons, feedback) => { buttons.forEach((button) => { button.disabled = true; }); feedback.hidden = true; try { const response = await fetch(`/api/interesses/${negotiation.id}`, { method: "PATCH", headers: { "Content-Type": "application/json", Accept: "application/json" }, body: JSON.stringify(payload) }); const result = await response.json(); if (!response.ok) throw new Error(result.message || "Não foi possível enviar a resposta."); Object.assign(negotiation, result.interest); item.replaceWith(createNegotiationCard(negotiation)); } catch (error) { feedback.textContent = error.message; feedback.hidden = false; buttons.forEach((button) => { button.disabled = false; }); } };
+          accept.addEventListener("click", () => { if (confirm("Confirma que aceita o ajuste solicitado?")) sendSellerAdjustment({ sellerAdjustmentAction: "accept" }, [accept, counter, reject], commonFeedback); });
+          counter.addEventListener("click", () => { actions.hidden = true; counterForm.hidden = false; }); reject.addEventListener("click", () => { actions.hidden = true; rejectionForm.hidden = false; rejectionReason.focus(); });
+          counterCancel.addEventListener("click", () => { counterForm.hidden = true; actions.hidden = false; }); rejectionCancel.addEventListener("click", () => { rejectionForm.hidden = true; actions.hidden = false; });
+          counterPrice.addEventListener("input", () => { counterPrice.value = formatPriceInput(counterPrice.value); });
+          rejectionForm.addEventListener("submit", (event) => { event.preventDefault(); if (!rejectionForm.reportValidity()) return; sendSellerAdjustment({ sellerAdjustmentAction: "reject", reason: rejectionReason.value }, [rejectionSubmit, rejectionCancel], rejectionFeedback); });
+          counterForm.addEventListener("submit", (event) => { event.preventDefault(); if (!counterForm.reportValidity()) return; sendSellerAdjustment({ sellerAdjustmentAction: "counter", confirmedQuantity: Number(counterQuantity.value), confirmedUnitPriceCents: priceInCents(counterPrice.value), availabilityDeadline: counterDeadline.value, documentationAvailable: counterDocumentation.value, note: counterNote.value }, [counterSubmit, counterCancel], counterFeedback); });
+          item.append(actions, commonFeedback, rejectionForm, counterForm);
         }
         if (!sold && negotiation.perspective === "seller" && ["awaiting_seller", "seller_correction_requested"].includes(negotiation.status)) {
           if (negotiation.status === "seller_correction_requested") { const correction = document.createElement("p"); correction.className = "message error"; correction.textContent = `Correção solicitada pela Global Shared Stock: ${negotiation.sellerCorrectionReason}`; item.append(correction); }

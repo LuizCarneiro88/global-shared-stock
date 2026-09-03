@@ -53,10 +53,49 @@ export async function onRequestPatch(context) {
       const { sellerCompanyId, buyerCompanyId, ...safeInterest } = updated;
       return Response.json({ success: true, interest: safeInterest, message: "Resposta enviada para análise da Global Shared Stock." }, { headers: { "Cache-Control": "no-store" } });
     }
+    if (interest.sellerCompanyId === session.companyId && interest.status === "seller_adjustment_requested") {
+      const sellerAdjustmentAction = String(input.sellerAdjustmentAction || "");
+      const decidedAt = new Date().toISOString();
+      if (sellerAdjustmentAction === "accept") {
+        const updated = { ...interest, status: "seller_adjustment_response_received", sellerAdjustmentResponse: { type: "accepted", decidedAt } };
+        await context.env.CADASTROS.put(key, JSON.stringify(updated));
+        const { sellerCompanyId, buyerCompanyId, buyerDecision, ...safeInterest } = updated;
+        return Response.json({ success: true, interest: safeInterest, message: "Ajuste aceito e enviado para análise administrativa." }, { headers: { "Cache-Control": "no-store" } });
+      }
+      if (sellerAdjustmentAction === "reject") {
+        const reason = String(input.reason || "").trim().replace(/\s+/g, " ").slice(0, 500);
+        if (!reason) return error("Informe o motivo da recusa.");
+        if (containsDirectContact(reason)) return error("O motivo não pode conter e-mail, telefone ou link.");
+        const updated = { ...interest, status: "seller_adjustment_response_received", sellerAdjustmentResponse: { type: "rejected", reason, decidedAt } };
+        await context.env.CADASTROS.put(key, JSON.stringify(updated));
+        const { sellerCompanyId, buyerCompanyId, buyerDecision, ...safeInterest } = updated;
+        return Response.json({ success: true, interest: safeInterest, message: "Recusa enviada para análise administrativa." }, { headers: { "Cache-Control": "no-store" } });
+      }
+      if (sellerAdjustmentAction === "counter") {
+        const confirmedQuantity = Number(input.confirmedQuantity);
+        const confirmedUnitPriceCents = Number(input.confirmedUnitPriceCents);
+        const availabilityDeadline = String(input.availabilityDeadline || "");
+        const documentationAvailable = String(input.documentationAvailable || "");
+        const note = String(input.note || "").trim().replace(/\s+/g, " ").slice(0, 800);
+        if (!Number.isFinite(confirmedQuantity) || confirmedQuantity <= 0 || confirmedQuantity > Number(interest.sellerResponse.confirmedQuantity)) return error("Informe uma quantidade válida para a contraproposta.");
+        if (!Number.isInteger(confirmedUnitPriceCents) || confirmedUnitPriceCents <= 0) return error("Informe um preço válido para a contraproposta.");
+        if (!SELLER_DEADLINES.has(availabilityDeadline) || availabilityDeadline === "not_applicable") return error("Selecione um prazo válido.");
+        if (!["yes", "no"].includes(documentationAvailable)) return error("Informe se a documentação está disponível.");
+        if (!note) return error("Explique a contraproposta.");
+        if (containsDirectContact(note)) return error("A contraproposta não pode conter e-mail, telefone ou link.");
+        const sellerAdjustmentResponse = { type: "counter", confirmedQuantity, confirmedUnitPriceCents, availabilityDeadline, documentationAvailable, note, decidedAt };
+        const updated = { ...interest, status: "seller_adjustment_response_received", sellerAdjustmentResponse };
+        await context.env.CADASTROS.put(key, JSON.stringify(updated));
+        const { sellerCompanyId, buyerCompanyId, buyerDecision, ...safeInterest } = updated;
+        return Response.json({ success: true, interest: safeInterest, message: "Contraproposta enviada para análise administrativa." }, { headers: { "Cache-Control": "no-store" } });
+      }
+      return error("Selecione uma resposta válida para o pedido de ajuste.");
+    }
     if (interest.buyerCompanyId !== session.companyId) return error("Somente a empresa responsável por esta etapa pode atualizar a solicitação.", 403);
-    if (interest.status === "response_shared") {
+    if (["response_shared", "buyer_adjustment_correction_requested"].includes(interest.status)) {
       const buyerAction = String(input.buyerAction || "");
       const decidedAt = new Date().toISOString();
+      if (interest.status === "buyer_adjustment_correction_requested" && buyerAction !== "request_adjustment") return error("Corrija e reenvie o pedido de ajuste.");
       if (buyerAction === "accept") {
         const updated = { ...interest, status: "buyer_accepted", buyerDecision: { type: "accepted", decidedAt } };
         await context.env.CADASTROS.put(key, JSON.stringify(updated));
@@ -86,7 +125,10 @@ export async function onRequestPatch(context) {
         if (topics.includes("price") && (!Number.isInteger(requestedUnitPriceCents) || requestedUnitPriceCents <= 0)) return error("Informe o preço desejado.");
         if (topics.includes("deadline") && (!SELLER_DEADLINES.has(requestedDeadline) || requestedDeadline === "not_applicable")) return error("Selecione o prazo desejado.");
         const buyerDecision = { type: "adjustment_requested", topics, note, requestedQuantity, requestedUnitPriceCents, requestedDeadline, decidedAt };
-        const updated = { ...interest, status: "buyer_adjustment_requested", buyerDecision };
+        const buyerDecisionHistory = interest.status === "buyer_adjustment_correction_requested" && interest.buyerDecision
+          ? [...(Array.isArray(interest.buyerDecisionHistory) ? interest.buyerDecisionHistory : []), { ...interest.buyerDecision, correctionReason: interest.buyerAdjustmentCorrectionReason || "" }]
+          : interest.buyerDecisionHistory || [];
+        const updated = { ...interest, status: "buyer_adjustment_requested", buyerDecision, buyerDecisionHistory, buyerAdjustmentCorrectionReason: "" };
         await context.env.CADASTROS.put(key, JSON.stringify(updated));
         const { sellerCompanyId, buyerCompanyId, sellerResponseHistory, sellerCorrectionReason, ...safeInterest } = updated;
         return Response.json({ success: true, interest: safeInterest, message: "Pedido de ajuste enviado para análise da Global Shared Stock." }, { headers: { "Cache-Control": "no-store" } });
@@ -135,6 +177,20 @@ export async function onRequestPatch(context) {
     if (interest.status !== "seller_response_received" || !interest.sellerResponse) return error("Não há uma resposta do vendedor para devolver.", 409);
     if (!sellerCorrectionReason) return error("Informe o motivo da correção solicitada.");
     const updated = { ...interest, status: "seller_correction_requested", sellerCorrectionReason, sellerCorrectionRequestedAt: new Date().toISOString() };
+    await context.env.CADASTROS.put(key, JSON.stringify(updated));
+    return Response.json({ success: true, interest: updated }, { headers: { "Cache-Control": "no-store" } });
+  }
+  if (status === "seller_adjustment_requested") {
+    if (interest.status !== "buyer_adjustment_requested" || interest.buyerDecision?.type !== "adjustment_requested") return error("Não há um pedido de ajuste pronto para encaminhar.", 409);
+    const updated = { ...interest, status: "seller_adjustment_requested", buyerAdjustmentSharedAt: new Date().toISOString() };
+    await context.env.CADASTROS.put(key, JSON.stringify(updated));
+    return Response.json({ success: true, interest: updated }, { headers: { "Cache-Control": "no-store" } });
+  }
+  if (status === "buyer_adjustment_correction_requested") {
+    const buyerAdjustmentCorrectionReason = String(input.buyerAdjustmentCorrectionReason || "").trim().replace(/\s+/g, " ").slice(0, 500);
+    if (interest.status !== "buyer_adjustment_requested") return error("Não há um pedido de ajuste para devolver.", 409);
+    if (!buyerAdjustmentCorrectionReason) return error("Informe o motivo da correção.");
+    const updated = { ...interest, status: "buyer_adjustment_correction_requested", buyerAdjustmentCorrectionReason, buyerAdjustmentCorrectionRequestedAt: new Date().toISOString() };
     await context.env.CADASTROS.put(key, JSON.stringify(updated));
     return Response.json({ success: true, interest: updated }, { headers: { "Cache-Control": "no-store" } });
   }
