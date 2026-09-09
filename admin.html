@@ -406,6 +406,17 @@
       .material-review label { font-weight: 700; }
       .material-review textarea { width: 100%; min-height: 100px; padding: 11px; border: 1px solid #555b63; border-radius: 9px; background: var(--surface); color: var(--text); font: inherit; resize: vertical; }
       .interest-note { margin: 4px 0 0; padding: 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface-light); color: var(--muted); line-height: 1.55; white-space: pre-wrap; }
+      .admin-interest-card .card-header { margin-bottom: 0; }
+      .interest-card-summary { display: grid; gap: 8px; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line); }
+      .interest-card-summary p { margin: 0; color: var(--muted); font-size: .86rem; line-height: 1.45; }
+      .interest-card-toggle { width: 100%; min-height: 44px; padding: 10px 14px; border: 1px solid #555b63; border-radius: 10px; background: transparent; color: var(--text); font: inherit; font-weight: 750; cursor: pointer; }
+      .interest-card-details { margin-top: 18px; padding-top: 18px; border-top: 1px solid var(--line); }
+      .interest-card-details[hidden] { display: none; }
+
+      @media (min-width: 700px) {
+        .interest-card-summary { grid-template-columns: 1fr auto; align-items: center; }
+        .interest-card-toggle { width: auto; min-width: 110px; }
+      }
 
       .back-link {
         display: block;
@@ -534,6 +545,7 @@
       const totalInterestCount = document.querySelector("#total-interest-count");
       const refreshInterests = document.querySelector("#refresh-interests");
       let interestsAreLoading = false;
+      let expandedAdminInterestId = "";
 
       const interestLabels = { buy: "Compra", sell: "Venda", both: "Compra e venda" };
       const inventoryLabels = {
@@ -1006,7 +1018,8 @@
 
       function createInterestCard(interest) {
         const article = document.createElement("article");
-        article.className = "company-card";
+        article.className = "company-card admin-interest-card";
+        article.dataset.interestId = interest.id;
         const cardHeader = document.createElement("div");
         cardHeader.className = "card-header";
         const title = document.createElement("h2");
@@ -1297,6 +1310,28 @@
         } else if (interest.status === "closed_no_sale") {
           const nextStep = document.createElement("p"); nextStep.className = "interest-note"; nextStep.textContent = interest.closureReason ? `Negociação encerrada sem venda: ${interest.closureReason}` : "Negociação encerrada sem venda por decisão da compradora."; article.append(nextStep);
         }
+
+        const movementDates = [interest.createdAt, interest.decidedAt, interest.revisedAt, interest.sellerRequestedAt, interest.sellerResponse?.respondedAt, interest.responseSharedAt, interest.buyerDecision?.decidedAt, interest.buyerAdjustmentSharedAt, interest.sellerAdjustmentResponse?.decidedAt, interest.agreementConfirmedAt, interest.commissionPurchaseOrder?.uploadedAt, interest.commissionCorrectionRequestedAt, interest.commissionSecuredAt].filter(Boolean);
+        const lastMovement = movementDates.sort((first, second) => new Date(second) - new Date(first))[0] || interest.createdAt;
+        const compact = document.createElement("div"); compact.className = "interest-card-summary";
+        const compactText = document.createElement("p"); compactText.textContent = `${interest.buyer?.companyName || "Empresa compradora"} → ${interest.seller?.companyName || "Empresa vendedora"} · Última movimentação: ${new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short" }).format(new Date(lastMovement))}`;
+        const toggle = document.createElement("button"); toggle.className = "interest-card-toggle"; toggle.type = "button";
+        const detailsId = `interest-details-${interest.id}`; const expanded = expandedAdminInterestId === interest.id;
+        toggle.textContent = expanded ? "Fechar" : "Abrir"; toggle.setAttribute("aria-expanded", String(expanded)); toggle.setAttribute("aria-controls", detailsId);
+        compact.append(compactText, toggle);
+        const fullDetails = document.createElement("div"); fullDetails.className = "interest-card-details"; fullDetails.id = detailsId; fullDetails.hidden = !expanded;
+        Array.from(article.children).slice(1).forEach((child) => fullDetails.append(child));
+        article.append(compact, fullDetails);
+        toggle.addEventListener("click", () => {
+          const willOpen = fullDetails.hidden;
+          document.querySelectorAll(".admin-interest-card").forEach((card) => {
+            const otherDetails = card.querySelector(".interest-card-details"); const otherToggle = card.querySelector(".interest-card-toggle");
+            if (otherDetails) otherDetails.hidden = true;
+            if (otherToggle) { otherToggle.textContent = "Abrir"; otherToggle.setAttribute("aria-expanded", "false"); }
+          });
+          fullDetails.hidden = !willOpen; toggle.textContent = willOpen ? "Fechar" : "Abrir"; toggle.setAttribute("aria-expanded", String(willOpen));
+          expandedAdminInterestId = willOpen ? interest.id : "";
+        });
         return article;
       }
 
