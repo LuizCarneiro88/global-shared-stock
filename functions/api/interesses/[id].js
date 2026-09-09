@@ -195,7 +195,9 @@ export async function onRequestPatch(context) {
     return Response.json({ success: true, interest: updated }, { headers: { "Cache-Control": "no-store" } });
   }
   if (status === "agreement_confirmed") {
-    if (interest.status !== "seller_adjustment_response_received" || interest.sellerAdjustmentResponse?.type !== "accepted") return error("Não há um ajuste aceito pronto para confirmação.", 409);
+    const directAcceptance = interest.status === "buyer_accepted" && interest.buyerDecision?.type === "accepted";
+    const acceptedAdjustment = interest.status === "seller_adjustment_response_received" && interest.sellerAdjustmentResponse?.type === "accepted";
+    if (!directAcceptance && !acceptedAdjustment) return error("Não há um acordo aceito pronto para confirmação.", 409);
     const updated = { ...interest, status: "agreement_confirmed", agreementConfirmedAt: new Date().toISOString() };
     await context.env.CADASTROS.put(key, JSON.stringify(updated));
     return Response.json({ success: true, interest: updated, message: "Acordo confirmado. A negociação seguirá para formalização." }, { headers: { "Cache-Control": "no-store" } });

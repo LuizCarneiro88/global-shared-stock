@@ -1120,7 +1120,17 @@
         } else if (interest.status === "response_shared") {
           const nextStep = document.createElement("p"); nextStep.className = "interest-note"; nextStep.textContent = "Resposta encaminhada à compradora com a identidade da vendedora protegida."; article.append(nextStep);
         } else if (interest.status === "buyer_accepted") {
-          const nextStep = document.createElement("p"); nextStep.className = "interest-note"; nextStep.textContent = "A compradora aceitou as condições. A negociação está pronta para formalização manual."; article.append(nextStep);
+          const confirmAgreement = document.createElement("button"); confirmAgreement.className = "action-button approve-button"; confirmAgreement.type = "button"; confirmAgreement.textContent = "Confirmar acordo";
+          const feedback = document.createElement("p"); feedback.className = "feedback"; feedback.hidden = true; feedback.role = "status";
+          confirmAgreement.addEventListener("click", async () => {
+            if (!confirm("Confirma o acordo entre a empresa compradora e a empresa vendedora?")) return;
+            confirmAgreement.disabled = true; feedback.hidden = true;
+            try {
+              const response = await fetch(`/api/interesses/${interest.id}`, { method: "PATCH", headers: { "Content-Type": "application/json", Accept: "application/json" }, body: JSON.stringify({ status: "agreement_confirmed" }) });
+              const result = await response.json(); if (!response.ok) throw new Error(result.message || "Não foi possível confirmar o acordo."); Object.assign(interest, result.interest); article.replaceWith(createInterestCard(interest));
+            } catch (error) { feedback.textContent = error.message; feedback.hidden = false; confirmAgreement.disabled = false; }
+          });
+          article.append(confirmAgreement, feedback);
         } else if (interest.status === "buyer_adjustment_requested") {
           const review = document.createElement("section"); review.className = "material-review";
           const actions = document.createElement("div"); actions.className = "actions";
