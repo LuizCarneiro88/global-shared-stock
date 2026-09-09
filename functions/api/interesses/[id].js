@@ -7,6 +7,7 @@ const SUBJECTS = new Set(["availability", "technical", "commercial", "documentat
 const AVAILABILITY = new Set(["available", "partial", "unavailable"]);
 const SELLER_DEADLINES = new Set(["immediate", "7_days", "15_days", "30_days", "over_30_days", "not_applicable"]);
 const ADJUSTMENT_TOPICS = new Set(["quantity", "price", "deadline", "documentation"]);
+const TERMS_VERSION = "MINUTA-0.1";
 
 function error(message, status = 400) {
   return Response.json({ message }, { status, headers: { "Cache-Control": "no-store" } });
@@ -28,6 +29,20 @@ export async function onRequestPatch(context) {
   if (!interest) return error("Interesse não encontrado.", 404);
 
   if (session?.role === "company") {
+    if (["terms_opened", "terms_read_to_end"].includes(input.action)) {
+      if (interest.sellerCompanyId !== session.companyId) return error("Somente a empresa vendedora pode registrar a leitura.", 403);
+      if (!["agreement_confirmed", "commission_po_correction_requested"].includes(interest.status)) return error("Os termos não podem ser aceitos nesta etapa.", 409);
+      const now = new Date().toISOString();
+      const previous = interest.termsReading?.version === TERMS_VERSION ? interest.termsReading : {};
+      const termsReading = {
+        ...previous,
+        version: TERMS_VERSION,
+        openedAt: previous.openedAt || now,
+        ...(input.action === "terms_read_to_end" ? { readToEndAt: previous.readToEndAt || now } : {}),
+      };
+      await context.env.CADASTROS.put(key, JSON.stringify({ ...interest, termsReading }));
+      return Response.json({ success: true, termsReading }, { headers: { "Cache-Control": "private, no-store" } });
+    }
     if (input.action === "mark_read") {
       const perspective = interest.buyerCompanyId === session.companyId ? "buyer" : interest.sellerCompanyId === session.companyId ? "seller" : "";
       if (!perspective) return error("Esta negociação não pertence à empresa conectada.", 403);

@@ -304,7 +304,9 @@
       }
 
       async function registerTermsReading(interestId, action) {
-        const response = await fetch(`/api/interesses/${interestId}/termos`, { method: "POST", headers: { "Content-Type": "application/json", Accept: "application/json" }, body: JSON.stringify({ action }) });
+        const response = await fetch(`/api/interesses/${interestId}`, { method: "PATCH", headers: { "Content-Type": "application/json", Accept: "application/json" }, body: JSON.stringify({ action: action === "opened" ? "terms_opened" : "terms_read_to_end" }) });
+        const contentType = response.headers.get("content-type") || "";
+        if (!contentType.includes("application/json")) throw new Error("Não foi possível confirmar a leitura. Feche esta janela, atualize a página e tente novamente.");
         const result = await response.json();
         if (!response.ok) throw new Error(result.message || "Não foi possível registrar a leitura da minuta.");
         return result.termsReading;
