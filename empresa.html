@@ -17,6 +17,10 @@
       h2 { margin: 0 0 18px; font-size: 1.4rem; }
       h3 { margin: 0; font-size: 1.05rem; }
       .introduction { margin: 14px 0 28px; color: var(--muted); line-height: 1.55; }
+      .workspace-tabs { display: flex; gap: 8px; margin: 0 0 22px; padding: 6px; overflow-x: auto; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); scrollbar-width: thin; }
+      .workspace-tab { flex: 1 0 auto; min-height: 44px; padding: 9px 13px; border-color: transparent; background: transparent; color: var(--muted); white-space: nowrap; }
+      .workspace-tab[aria-selected="true"] { border-color: #555b63; background: var(--silver); color: #121519; }
+      .workspace-tab-panel[hidden] { display: none; }
       .panel { margin-top: 20px; padding: 22px 16px; border: 1px solid var(--line); border-radius: 18px; background: var(--surface); }
       .fields { display: grid; gap: 16px; }
       label { display: block; margin-bottom: 7px; font-size: 0.9rem; font-weight: 700; }
@@ -44,6 +48,15 @@
       button:disabled { cursor: wait; opacity: 0.6; }
       .material-list { display: grid; gap: 12px; margin: 0; padding: 0; list-style: none; }
       .material-card { padding: 16px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface-light); }
+      .negotiation-group { border: 1px solid var(--line); border-radius: 12px; background: var(--surface-light); overflow: hidden; }
+      .negotiation-group > summary { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px 12px; align-items: center; padding: 16px; cursor: pointer; list-style: none; }
+      .negotiation-group > summary::-webkit-details-marker { display: none; }
+      .negotiation-group > summary::after { content: "Abrir"; color: var(--silver); font-size: .76rem; font-weight: 750; }
+      .negotiation-group[open] > summary::after { content: "Fechar"; }
+      .negotiation-group-title { min-width: 0; overflow-wrap: anywhere; font-size: 1rem; }
+      .negotiation-group-meta { grid-column: 1 / -1; color: var(--muted); font-size: .78rem; }
+      .negotiation-alert { display: inline-block; margin-left: 6px; color: var(--success); font-weight: 800; }
+      .negotiation-threads { display: grid; gap: 12px; padding: 0 12px 12px; }
       .material-header { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 10px; }
       .material-card p { margin: 8px 0 0; color: var(--muted); line-height: 1.45; }
       .material-values { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 14px; font-size: 0.82rem; }
@@ -89,6 +102,15 @@
       <div class="account-header"><p class="brand">Global Shared Stock</p><p id="active-account" class="active-account">Carregando empresa...</p></div>
       <h1>Área da empresa</h1>
       <p id="company-name" class="introduction">Carregando dados da empresa...</p>
+
+      <nav class="workspace-tabs" aria-label="Áreas da empresa" role="tablist">
+        <button id="materials-tab" class="workspace-tab" type="button" role="tab" aria-selected="true" aria-controls="materials-panel">Materiais</button>
+        <button id="interests-tab" class="workspace-tab" type="button" role="tab" aria-selected="false" aria-controls="interests-panel">Interesses</button>
+        <button id="negotiations-tab" class="workspace-tab" type="button" role="tab" aria-selected="false" aria-controls="negotiations-panel">Negociações</button>
+        <button id="completed-tab" class="workspace-tab" type="button" role="tab" aria-selected="false" aria-controls="completed-panel">Concluídos</button>
+      </nav>
+
+      <section id="materials-panel" class="workspace-tab-panel" role="tabpanel" aria-labelledby="materials-tab">
 
       <section class="panel" aria-labelledby="material-title">
         <h2 id="material-title">Adicionar material</h2>
@@ -156,23 +178,30 @@
         <p id="empty-sent" class="introduction">Nenhum material cadastrado.</p>
         <ul id="sent-list" class="material-list"></ul>
       </section>
+      </section>
 
+      <section id="negotiations-panel" class="workspace-tab-panel" role="tabpanel" aria-labelledby="negotiations-tab" hidden>
       <section class="panel" aria-labelledby="negotiations-title">
         <h2 id="negotiations-title">Materiais em negociação</h2>
         <p id="empty-negotiations" class="introduction">Nenhum material em negociação.</p>
         <ul id="negotiation-list" class="material-list"></ul>
       </section>
-
-      <section class="panel" aria-labelledby="sold-title">
-        <h2 id="sold-title">Materiais vendidos</h2>
-        <p id="empty-sold" class="introduction">Nenhum material vendido.</p>
-        <ul id="sold-list" class="material-list"></ul>
       </section>
 
+      <section id="completed-panel" class="workspace-tab-panel" role="tabpanel" aria-labelledby="completed-tab" hidden>
+      <section class="panel" aria-labelledby="sold-title">
+        <h2 id="sold-title">Negociações concluídas</h2>
+        <p id="empty-sold" class="introduction">Nenhuma negociação concluída.</p>
+        <ul id="sold-list" class="material-list"></ul>
+      </section>
+      </section>
+
+      <section id="interests-panel" class="workspace-tab-panel" role="tabpanel" aria-labelledby="interests-tab" hidden>
       <section class="panel" aria-labelledby="interests-title">
         <h2 id="interests-title">Meus interesses</h2>
         <p id="empty-interests" class="introduction">Nenhum interesse registrado.</p>
         <ul id="interest-list" class="material-list"></ul>
+      </section>
       </section>
 
       <form class="logout" action="/api/logout" method="post"><button class="secondary" type="submit">Sair</button></form>
@@ -219,6 +248,25 @@
       const certificateInput = document.querySelector("#certificate-input");
       const photoList = document.querySelector("#photo-list");
       const certificateList = document.querySelector("#certificate-list");
+      const workspaceTabs = [...document.querySelectorAll(".workspace-tab")];
+      const workspacePanels = [...document.querySelectorAll(".workspace-tab-panel")];
+
+      function openWorkspaceTab(tab) {
+        if (!tab || tab.hidden) return;
+        workspaceTabs.forEach((button) => button.setAttribute("aria-selected", String(button === tab)));
+        workspacePanels.forEach((panel) => { panel.hidden = panel.id !== tab.getAttribute("aria-controls"); });
+      }
+
+      workspaceTabs.forEach((tab) => tab.addEventListener("click", () => openWorkspaceTab(tab)));
+
+      function configureWorkspace(companyInterest) {
+        const materialsTab = document.querySelector("#materials-tab");
+        const interestsTab = document.querySelector("#interests-tab");
+        materialsTab.hidden = companyInterest === "buy";
+        interestsTab.hidden = companyInterest === "sell";
+        const selected = workspaceTabs.find((tab) => tab.getAttribute("aria-selected") === "true" && !tab.hidden);
+        openWorkspaceTab(selected || workspaceTabs.find((tab) => !tab.hidden));
+      }
       const photoStatus = document.querySelector("#photo-status");
       const certificateStatus = document.querySelector("#certificate-status");
       const drafts = [];
@@ -625,6 +673,7 @@
           document.querySelector("#company-name").textContent = result.companyName;
           document.querySelector("#active-account").textContent = result.companyName;
           document.querySelector("#active-account").title = `Empresa conectada: ${result.companyName}`;
+          configureWorkspace(result.companyInterest);
           draftStorageKey = `global-shared-stock:rascunho:${result.companyId}`;
           restoreDrafts();
           renderDrafts();
@@ -853,7 +902,7 @@
         title.textContent = negotiation.materialDescription;
         const status = document.createElement("span");
         status.className = "status-pill";
-        status.textContent = sold ? "Vendido" : negotiation.status === "agreement_confirmed" ? "Acordo confirmado — em formalização" : negotiation.status === "awaiting_seller" ? (negotiation.perspective === "seller" ? "Resposta solicitada" : "Aguardando vendedor") : negotiation.status === "seller_response_received" ? (negotiation.perspective === "seller" ? "Resposta enviada" : "Resposta em análise") : negotiation.status === "seller_correction_requested" ? (negotiation.perspective === "seller" ? "Correção solicitada" : "Resposta em correção") : negotiation.status === "response_shared" ? (negotiation.perspective === "seller" ? "Resposta encaminhada" : "Resposta recebida") : negotiation.status === "seller_adjustment_requested" ? "Ajuste recebido" : negotiation.status === "seller_adjustment_response_received" ? "Resposta ao ajuste enviada" : negotiation.status === "buyer_adjustment_correction_requested" ? "Ajuste em correção" : negotiation.status === "buyer_review_pending_admin" ? "Atualização em análise" : negotiation.status === "buyer_accepted" ? "Condições aceitas" : negotiation.status === "buyer_adjustment_requested" ? "Ajuste em análise" : "Em intermediação";
+        status.textContent = sold ? (negotiation.perspective === "seller" ? "Vendido" : "Comprado") : negotiation.status === "agreement_confirmed" ? "Acordo confirmado — em formalização" : negotiation.status === "awaiting_seller" ? (negotiation.perspective === "seller" ? "Resposta solicitada" : "Aguardando vendedor") : negotiation.status === "seller_response_received" ? (negotiation.perspective === "seller" ? "Resposta enviada" : "Resposta em análise") : negotiation.status === "seller_correction_requested" ? (negotiation.perspective === "seller" ? "Correção solicitada" : "Resposta em correção") : negotiation.status === "response_shared" ? (negotiation.perspective === "seller" ? "Resposta encaminhada" : "Resposta recebida") : negotiation.status === "seller_adjustment_requested" ? "Ajuste recebido" : negotiation.status === "seller_adjustment_response_received" ? "Resposta ao ajuste enviada" : negotiation.status === "buyer_adjustment_correction_requested" ? "Ajuste em correção" : negotiation.status === "buyer_review_pending_admin" ? "Atualização em análise" : negotiation.status === "buyer_accepted" ? "Condições aceitas" : negotiation.status === "buyer_adjustment_requested" ? "Ajuste em análise" : "Em intermediação";
         header.append(title, status);
         const unitName = negotiation.unit === "other" ? negotiation.otherUnit : unitLabels[negotiation.unit];
         const information = document.createElement("p");
@@ -998,6 +1047,34 @@
         return item;
       }
 
+      function createNegotiationGroup(negotiations) {
+        const representative = negotiations[0];
+        const wrapper = document.createElement("li");
+        const details = document.createElement("details"); details.className = "negotiation-group";
+        const summary = document.createElement("summary");
+        const title = document.createElement("strong"); title.className = "negotiation-group-title"; title.textContent = representative.materialDescription;
+        const meta = document.createElement("span"); meta.className = "negotiation-group-meta";
+        const perspective = representative.perspective === "seller" ? "Vendendo" : "Comprando";
+        meta.textContent = `${perspective} · ${negotiations.length} ${negotiations.length === 1 ? "negociação" : "negociações"}`;
+        const needsAction = negotiations.some((negotiation) => negotiation.perspective === "seller"
+          ? ["awaiting_seller", "seller_correction_requested", "seller_adjustment_requested"].includes(negotiation.status)
+          : ["response_shared", "buyer_adjustment_correction_requested"].includes(negotiation.status));
+        if (needsAction) { const alert = document.createElement("span"); alert.className = "negotiation-alert"; alert.textContent = "● Ação necessária"; meta.append(alert); }
+        const threads = document.createElement("div"); threads.className = "negotiation-threads";
+        negotiations.forEach((negotiation) => threads.append(createNegotiationCard(negotiation)));
+        summary.append(title, meta); details.append(summary, threads); wrapper.append(details); return wrapper;
+      }
+
+      function groupNegotiations(negotiations) {
+        const groups = new Map();
+        negotiations.forEach((negotiation) => {
+          const key = `${negotiation.materialId}:${negotiation.perspective}`;
+          if (!groups.has(key)) groups.set(key, []);
+          groups.get(key).push(negotiation);
+        });
+        return [...groups.values()].map(createNegotiationGroup);
+      }
+
       async function loadInterests() {
         try {
           const response = await fetch("/api/interesses", { headers: { Accept: "application/json" } });
@@ -1005,7 +1082,7 @@
           if (!response.ok) throw new Error(result.message || "Não foi possível carregar os interesses.");
           interestList.replaceChildren(...result.interests.map(createInterestCard));
           emptyInterests.hidden = result.interests.length > 0;
-          negotiationList.replaceChildren(...result.negotiations.map((interest) => createNegotiationCard(interest)));
+          negotiationList.replaceChildren(...groupNegotiations(result.negotiations));
           emptyNegotiations.hidden = result.negotiations.length > 0;
           soldList.replaceChildren(...result.soldMaterials.map((interest) => createNegotiationCard(interest, true)));
           emptySold.hidden = result.soldMaterials.length > 0;
