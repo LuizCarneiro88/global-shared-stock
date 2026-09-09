@@ -76,13 +76,18 @@ export async function onRequestGet(context) {
     const companyIds = [...new Set(interests.flatMap((item) => [item.buyerCompanyId, item.sellerCompanyId]))];
     const companies = await Promise.all(companyIds.map((id) => context.env.CADASTROS.get(`cadastro:${id}:dados`, "json")));
     const companiesById = new Map(companies.filter(Boolean).map((company) => [company.id, company]));
+    const materialIds = [...new Set(interests.map((item) => item.materialId))];
+    const advertisements = await Promise.all(materialIds.map((id) => context.env.CADASTROS.get(`anuncio:${id}`, "json")));
+    const advertisementsById = new Map(advertisements.filter(Boolean).map((advertisement) => [advertisement.id, advertisement]));
     const result = interests.map((item) => {
       const buyer = companiesById.get(item.buyerCompanyId);
       const seller = companiesById.get(item.sellerCompanyId);
+      const advertisement = advertisementsById.get(item.materialId);
       return {
         ...item,
         buyer: { companyName: buyer?.companyName || "Empresa não encontrada", primaryEmail: buyer?.primaryEmail || "" },
         seller: { companyName: seller?.companyName || "Empresa não encontrada", primaryEmail: seller?.primaryEmail || "" },
+        materialCondition: advertisement?.condition || "",
       };
     });
     result.sort((first, second) => second.createdAt.localeCompare(first.createdAt));

@@ -353,6 +353,23 @@
         display: none;
       }
 
+      .conversation { margin: 24px 0; padding-top: 20px; border-top: 1px solid var(--line); }
+      .conversation-title { margin-bottom: 18px; }
+      .conversation-list { display: grid; gap: 14px; }
+      .conversation-message { display: flex; width: 100%; }
+      .conversation-message.seller { justify-content: flex-start; }
+      .conversation-message.buyer { justify-content: flex-end; }
+      .conversation-message.admin { justify-content: center; }
+      .conversation-bubble { width: min(88%, 560px); padding: 13px 15px; border: 1px solid var(--line); border-radius: 16px; background: #181c21; }
+      .conversation-message.buyer .conversation-bubble { border-bottom-right-radius: 4px; background: #242a31; }
+      .conversation-message.seller .conversation-bubble { border-bottom-left-radius: 4px; }
+      .conversation-message.admin .conversation-bubble { width: min(94%, 620px); border-style: dashed; background: transparent; text-align: center; }
+      .conversation-author { display: block; margin-bottom: 7px; color: var(--silver); font-size: .78rem; font-weight: 800; }
+      .conversation-text { margin: 0; line-height: 1.5; white-space: pre-line; }
+      .conversation-time { display: block; margin-top: 8px; color: var(--muted); font-size: .7rem; }
+      .terms-summary { margin-top: 22px; padding: 18px; border: 1px solid #57735c; border-radius: 14px; background: rgba(87, 115, 92, .08); }
+      .terms-summary .details { margin-bottom: 0; }
+
       .access-panel {
         display: grid;
         gap: 10px;
@@ -930,6 +947,60 @@
         return article;
       }
 
+      function appendNegotiationHistory(container, interest, unit) {
+        const dateTime = (value) => new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short" }).format(new Date(value));
+        const events = [];
+        const addEvent = (side, author, text, time) => { if (time && text) events.push({ side, author, text, time }); };
+        addEvent("buyer", interest.buyer?.companyName || "Empresa compradora", `Interesse registrado\nQuantidade: ${interest.quantity} ${unit || ""}\nPrazo: ${deadlineLabels[interest.deadline]}\nAssunto: ${subjectLabels[interest.subject]}${interest.note ? `\n${interest.note}` : ""}`, interest.createdAt);
+        if (interest.decidedAt) addEvent("admin", "Global Shared Stock", interest.status === "rejected" ? `Interesse rejeitado${interest.rejectionReason ? `: ${interest.rejectionReason}` : "."}` : "Interesse aceito para intermediação.", interest.decidedAt);
+        (interest.sellerResponseHistory || []).forEach((response) => addEvent("seller", interest.seller?.companyName || "Empresa vendedora", `Resposta anterior\n${sellerAvailabilityLabels[response.availability]} · ${response.confirmedQuantity} ${unit || ""} · ${money.format(response.confirmedUnitPriceCents / 100)}${response.note ? `\n${response.note}` : ""}`, response.respondedAt));
+        if (interest.sellerResponse) addEvent("seller", interest.seller?.companyName || "Empresa vendedora", `Disponibilidade: ${sellerAvailabilityLabels[interest.sellerResponse.availability]}\nQuantidade: ${interest.sellerResponse.confirmedQuantity} ${unit || ""}\nPreço unitário: ${money.format(interest.sellerResponse.confirmedUnitPriceCents / 100)}\nPrazo: ${sellerDeadlineLabels[interest.sellerResponse.availabilityDeadline]}\nDocumentação: ${interest.sellerResponse.documentationAvailable === "yes" ? "Disponível" : "Não disponível"}${interest.sellerResponse.note ? `\n${interest.sellerResponse.note}` : ""}`, interest.sellerResponse.respondedAt);
+        if (interest.responseSharedAt) addEvent("admin", "Global Shared Stock", "Resposta da vendedora encaminhada à compradora.", interest.responseSharedAt);
+        (interest.buyerDecisionHistory || []).forEach((decision) => addEvent("buyer", interest.buyer?.companyName || "Empresa compradora", `Pedido de ajuste anterior\n${decision.note || ""}`, decision.decidedAt));
+        if (interest.buyerDecision?.type === "accepted") addEvent("buyer", interest.buyer?.companyName || "Empresa compradora", "Condições apresentadas aceitas.", interest.buyerDecision.decidedAt);
+        if (interest.buyerDecision?.type === "rejected") addEvent("buyer", interest.buyer?.companyName || "Empresa compradora", `Condições recusadas: ${interest.buyerDecision.reason}`, interest.buyerDecision.decidedAt);
+        if (interest.buyerDecision?.type === "adjustment_requested") {
+          const requested = interest.buyerDecision;
+          const lines = [`Ajuste solicitado: ${requested.topics.map((topic) => adjustmentTopicLabels[topic]).join(", ")}`];
+          if (requested.requestedQuantity) lines.push(`Quantidade desejada: ${requested.requestedQuantity} ${unit || ""}`);
+          if (requested.requestedUnitPriceCents) lines.push(`Preço desejado: ${money.format(requested.requestedUnitPriceCents / 100)}`);
+          if (requested.requestedDeadline) lines.push(`Prazo desejado: ${sellerDeadlineLabels[requested.requestedDeadline]}`);
+          lines.push(requested.note);
+          addEvent("buyer", interest.buyer?.companyName || "Empresa compradora", lines.join("\n"), requested.decidedAt);
+        }
+        if (interest.buyerAdjustmentSharedAt) addEvent("admin", "Global Shared Stock", "Pedido de ajuste encaminhado à vendedora.", interest.buyerAdjustmentSharedAt);
+        if (interest.sellerAdjustmentResponse?.type === "accepted") addEvent("seller", interest.seller?.companyName || "Empresa vendedora", "Ajuste solicitado aceito.", interest.sellerAdjustmentResponse.decidedAt);
+        if (interest.sellerAdjustmentResponse?.type === "rejected") addEvent("seller", interest.seller?.companyName || "Empresa vendedora", `Ajuste recusado: ${interest.sellerAdjustmentResponse.reason}`, interest.sellerAdjustmentResponse.decidedAt);
+        if (interest.sellerAdjustmentResponse?.type === "counter") addEvent("seller", interest.seller?.companyName || "Empresa vendedora", `Contraproposta\nQuantidade: ${interest.sellerAdjustmentResponse.confirmedQuantity} ${unit || ""}\nPreço: ${money.format(interest.sellerAdjustmentResponse.confirmedUnitPriceCents / 100)}\nPrazo: ${sellerDeadlineLabels[interest.sellerAdjustmentResponse.availabilityDeadline]}\n${interest.sellerAdjustmentResponse.note}`, interest.sellerAdjustmentResponse.decidedAt);
+        if (interest.agreementConfirmedAt) addEvent("admin", "Global Shared Stock", "Acordo confirmado. Negociação em formalização.", interest.agreementConfirmedAt);
+        events.sort((first, second) => new Date(first.time) - new Date(second.time));
+
+        const conversation = document.createElement("section"); conversation.className = "conversation";
+        const title = document.createElement("h3"); title.className = "conversation-title"; title.textContent = "Histórico da negociação";
+        const list = document.createElement("div"); list.className = "conversation-list";
+        events.forEach((event) => { const row = document.createElement("div"); row.className = `conversation-message ${event.side}`; const bubble = document.createElement("div"); bubble.className = "conversation-bubble"; const author = document.createElement("strong"); author.className = "conversation-author"; author.textContent = event.author; const text = document.createElement("p"); text.className = "conversation-text"; text.textContent = event.text; const time = document.createElement("time"); time.className = "conversation-time"; time.dateTime = event.time; time.textContent = dateTime(event.time); bubble.append(author, text, time); row.append(bubble); list.append(row); });
+        conversation.append(title, list); container.append(conversation);
+
+        if (!interest.sellerResponse) return;
+        const current = interest.sellerAdjustmentResponse?.type === "counter" ? interest.sellerAdjustmentResponse : interest.sellerResponse;
+        const acceptedAdjustment = interest.sellerAdjustmentResponse?.type === "accepted" ? interest.buyerDecision : null;
+        const quantity = acceptedAdjustment?.requestedQuantity || current.confirmedQuantity;
+        const unitPriceCents = acceptedAdjustment?.requestedUnitPriceCents || current.confirmedUnitPriceCents;
+        const deadline = acceptedAdjustment?.requestedDeadline || current.availabilityDeadline;
+        const summary = document.createElement("section"); summary.className = "terms-summary";
+        const summaryTitle = document.createElement("h3"); summaryTitle.textContent = "Condições atuais da negociação";
+        const summaryDetails = document.createElement("dl"); summaryDetails.className = "details";
+        addDetail(summaryDetails, "Disponibilidade", sellerAvailabilityLabels[interest.sellerResponse.availability]);
+        addDetail(summaryDetails, "Quantidade confirmada", `${quantity} ${unit || ""}`.trim());
+        addDetail(summaryDetails, "Preço unitário", money.format(unitPriceCents / 100));
+        addDetail(summaryDetails, "Valor total", money.format((quantity * unitPriceCents) / 100));
+        addDetail(summaryDetails, "Prazo", sellerDeadlineLabels[deadline]);
+        addDetail(summaryDetails, "Documentação ou certificado", current.documentationAvailable === "yes" ? "Disponível" : "Não disponível");
+        addDetail(summaryDetails, "Condição do material", conditionLabels[interest.materialCondition] || "Não informada");
+        addDetail(summaryDetails, "Situação", interestStatusLabels[interest.status]?.label || "Em negociação");
+        summary.append(summaryTitle, summaryDetails); container.append(summary);
+      }
+
       function createInterestCard(interest) {
         const article = document.createElement("article");
         article.className = "company-card";
@@ -964,7 +1035,7 @@
         if (Array.isArray(interest.sellerResponseHistory) && interest.sellerResponseHistory.length) addDetail(details, "Respostas anteriores do vendedor", String(interest.sellerResponseHistory.length));
         if (interest.buyerDecision?.decidedAt) addDetail(details, "Decisão da compradora em", new Intl.DateTimeFormat("pt-BR", { dateStyle: "long", timeStyle: "short" }).format(new Date(interest.buyerDecision.decidedAt)));
         article.append(cardHeader, details);
-        if (interest.note) {
+        if (false && interest.note) {
           const noteTitle = document.createElement("h3");
           noteTitle.textContent = "Observação do comprador";
           const note = document.createElement("p");
@@ -972,7 +1043,7 @@
           note.textContent = interest.note;
           article.append(noteTitle, note);
         }
-        if (interest.sellerResponse) {
+        if (false && interest.sellerResponse) {
           const responseTitle = document.createElement("h3");
           responseTitle.textContent = "Resposta da empresa vendedora";
           const responseDetails = document.createElement("dl");
@@ -986,7 +1057,7 @@
           article.append(responseTitle, responseDetails);
           if (interest.sellerResponse.note) { const responseNote = document.createElement("p"); responseNote.className = "interest-note"; responseNote.textContent = interest.sellerResponse.note; article.append(responseNote); }
         }
-        if (interest.buyerDecision) {
+        if (false && interest.buyerDecision) {
           const decisionTitle = document.createElement("h3"); decisionTitle.textContent = "Decisão da empresa compradora";
           const decisionDetails = document.createElement("dl"); decisionDetails.className = "details";
           if (interest.buyerDecision.type === "accepted") addDetail(decisionDetails, "Decisão", "Condições aceitas");
@@ -1001,7 +1072,7 @@
           }
           article.append(decisionTitle, decisionDetails);
         }
-        if (interest.sellerAdjustmentResponse) {
+        if (false && interest.sellerAdjustmentResponse) {
           const adjustmentTitle = document.createElement("h3"); adjustmentTitle.textContent = "Resposta da vendedora ao ajuste";
           const adjustmentDetails = document.createElement("dl"); adjustmentDetails.className = "details";
           if (interest.sellerAdjustmentResponse.type === "accepted") addDetail(adjustmentDetails, "Resposta", "Ajuste aceito");
@@ -1016,6 +1087,7 @@
           }
           article.append(adjustmentTitle, adjustmentDetails);
         }
+        appendNegotiationHistory(article, interest, unit);
         if (["received", "resubmitted"].includes(interest.status)) {
           const review = document.createElement("section");
           review.className = "material-review";
