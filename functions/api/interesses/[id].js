@@ -210,6 +210,28 @@ export async function onRequestPatch(context) {
     await context.env.CADASTROS.put(key, JSON.stringify(updated));
     return Response.json({ success: true, interest: updated, message: "Acordo confirmado. A negociação seguirá para formalização." }, { headers: { "Cache-Control": "no-store" } });
   }
+  if (status === "commission_secured") {
+    if (interest.status !== "commission_po_submitted" || !interest.commissionPurchaseOrder) return error("Não há uma Ordem de Compra pronta para aprovação.", 409);
+    const updated = { ...interest, status: "commission_secured", commissionSecuredAt: new Date().toISOString(), commissionPurchaseOrder: { ...interest.commissionPurchaseOrder, status: "approved", reviewedAt: new Date().toISOString() } };
+    await context.env.CADASTROS.put(key, JSON.stringify(updated));
+    return Response.json({ success: true, interest: updated, message: "Ordem de Compra aprovada e contatos liberados para as empresas." }, { headers: { "Cache-Control": "no-store" } });
+  }
+  if (status === "commission_po_correction_requested") {
+    const commissionCorrectionReason = String(input.commissionCorrectionReason || "").trim().replace(/\s+/g, " ").slice(0, 500);
+    if (interest.status !== "commission_po_submitted" || !interest.commissionPurchaseOrder) return error("Não há uma Ordem de Compra para devolver.", 409);
+    if (!commissionCorrectionReason) return error("Informe o motivo da correção.");
+    const updated = { ...interest, status, commissionCorrectionReason, commissionCorrectionRequestedAt: new Date().toISOString(), commissionPurchaseOrder: { ...interest.commissionPurchaseOrder, status: "correction_requested" } };
+    await context.env.CADASTROS.put(key, JSON.stringify(updated));
+    return Response.json({ success: true, interest: updated }, { headers: { "Cache-Control": "no-store" } });
+  }
+  if (status === "commission_po_rejected") {
+    const reason = String(input.commissionCorrectionReason || "").trim().replace(/\s+/g, " ").slice(0, 500);
+    if (interest.status !== "commission_po_submitted" || !interest.commissionPurchaseOrder) return error("Não há uma Ordem de Compra para rejeitar.", 409);
+    if (!reason) return error("Informe o motivo da rejeição.");
+    const updated = { ...interest, status: "closed_no_sale", closureReason: reason, closedAt: new Date().toISOString(), commissionPurchaseOrder: { ...interest.commissionPurchaseOrder, status: "rejected", rejectionReason: reason } };
+    await context.env.CADASTROS.put(key, JSON.stringify(updated));
+    return Response.json({ success: true, interest: updated }, { headers: { "Cache-Control": "no-store" } });
+  }
   if (!DECISIONS.has(status)) return error("Decisão inválida.");
   if (status === "rejected" && !rejectionReason) return error("Informe o motivo da rejeição.");
 

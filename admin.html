@@ -558,7 +558,7 @@
       const money = { format: (value) => `US$ ${americanNumber.format(value)}` };
       const deadlineLabels = { immediate: "Imediato", "7_days": "Em até 7 dias", "15_days": "Em até 15 dias", "30_days": "Em até 30 dias", flexible: "Prazo flexível" };
       const subjectLabels = { availability: "Confirmar disponibilidade", technical: "Dúvida técnica", commercial: "Condição comercial", documentation: "Documentação ou certificado", other: "Outro assunto" };
-      const interestStatusLabels = { received: { label: "Recebido", className: "" }, resubmitted: { label: "Reenviado para avaliação", className: "" }, in_intermediation: { label: "Em intermediação", className: "approved" }, awaiting_seller: { label: "Aguardando vendedor", className: "" }, seller_response_received: { label: "Resposta recebida", className: "approved" }, seller_correction_requested: { label: "Correção solicitada ao vendedor", className: "" }, response_shared: { label: "Encaminhada ao comprador", className: "approved" }, buyer_accepted: { label: "Condições aceitas", className: "approved" }, buyer_adjustment_requested: { label: "Ajuste solicitado", className: "" }, buyer_adjustment_correction_requested: { label: "Correção solicitada à compradora", className: "" }, seller_adjustment_requested: { label: "Ajuste encaminhado à vendedora", className: "" }, seller_adjustment_response_received: { label: "Resposta ao ajuste recebida", className: "approved" }, agreement_confirmed: { label: "Acordo confirmado", className: "approved" }, closed_no_sale: { label: "Encerrada sem venda", className: "rejected" }, rejected: { label: "Rejeitado", className: "rejected" } };
+      const interestStatusLabels = { received: { label: "Recebido", className: "" }, resubmitted: { label: "Reenviado para avaliação", className: "" }, in_intermediation: { label: "Em intermediação", className: "approved" }, awaiting_seller: { label: "Aguardando vendedor", className: "" }, seller_response_received: { label: "Resposta recebida", className: "approved" }, seller_correction_requested: { label: "Correção solicitada ao vendedor", className: "" }, response_shared: { label: "Encaminhada ao comprador", className: "approved" }, buyer_accepted: { label: "Condições aceitas", className: "approved" }, buyer_adjustment_requested: { label: "Ajuste solicitado", className: "" }, buyer_adjustment_correction_requested: { label: "Correção solicitada à compradora", className: "" }, seller_adjustment_requested: { label: "Ajuste encaminhado à vendedora", className: "" }, seller_adjustment_response_received: { label: "Resposta ao ajuste recebida", className: "approved" }, agreement_confirmed: { label: "Aguardando Ordem de Compra", className: "approved" }, commission_po_submitted: { label: "Ordem de Compra recebida", className: "approved" }, commission_po_correction_requested: { label: "Correção da Ordem de Compra solicitada", className: "" }, commission_secured: { label: "Comissão garantida", className: "approved" }, closed_no_sale: { label: "Encerrada sem venda", className: "rejected" }, rejected: { label: "Rejeitado", className: "rejected" } };
       const sellerAvailabilityLabels = { available: "Disponível", partial: "Parcialmente disponível", unavailable: "Indisponível" };
       const sellerDeadlineLabels = { immediate: "Imediato", "7_days": "Em até 7 dias", "15_days": "Em até 15 dias", "30_days": "Em até 30 dias", over_30_days: "Acima de 30 dias", not_applicable: "Não se aplica" };
       const adjustmentTopicLabels = { quantity: "Quantidade", price: "Preço", deadline: "Prazo", documentation: "Documentação" };
@@ -973,6 +973,9 @@
         if (interest.sellerAdjustmentResponse?.type === "rejected") addEvent("seller", interest.seller?.companyName || "Empresa vendedora", `Ajuste recusado: ${interest.sellerAdjustmentResponse.reason}`, interest.sellerAdjustmentResponse.decidedAt);
         if (interest.sellerAdjustmentResponse?.type === "counter") addEvent("seller", interest.seller?.companyName || "Empresa vendedora", `Contraproposta\nQuantidade: ${interest.sellerAdjustmentResponse.confirmedQuantity} ${unit || ""}\nPreço: ${money.format(interest.sellerAdjustmentResponse.confirmedUnitPriceCents / 100)}\nPrazo: ${sellerDeadlineLabels[interest.sellerAdjustmentResponse.availabilityDeadline]}\n${interest.sellerAdjustmentResponse.note}`, interest.sellerAdjustmentResponse.decidedAt);
         if (interest.agreementConfirmedAt) addEvent("admin", "Global Shared Stock", "Acordo confirmado. Negociação em formalização.", interest.agreementConfirmedAt);
+        if (interest.commissionPurchaseOrder?.uploadedAt) addEvent("seller", interest.seller?.companyName || "Empresa vendedora", "Termo de comissão aceito e Ordem de Compra anexada.", interest.commissionPurchaseOrder.uploadedAt);
+        if (interest.commissionCorrectionRequestedAt) addEvent("admin", "Global Shared Stock", `Correção solicitada na Ordem de Compra: ${interest.commissionCorrectionReason}`, interest.commissionCorrectionRequestedAt);
+        if (interest.commissionSecuredAt) addEvent("admin", "Global Shared Stock", "Ordem de Compra aprovada. Comissão formalmente garantida e contatos liberados.", interest.commissionSecuredAt);
         events.sort((first, second) => new Date(first.time) - new Date(second.time));
 
         const conversation = document.createElement("section"); conversation.className = "conversation";
@@ -1088,6 +1091,16 @@
           article.append(adjustmentTitle, adjustmentDetails);
         }
         appendNegotiationHistory(article, interest, unit);
+        if (interest.commissionPurchaseOrder) {
+          const order = document.createElement("section"); order.className = "documents";
+          const orderTitle = document.createElement("h3"); orderTitle.textContent = "Garantia da comissão";
+          const orderDetails = document.createElement("dl"); orderDetails.className = "details";
+          addDetail(orderDetails, "Valor total da venda", money.format(interest.commissionPurchaseOrder.totalCents / 100));
+          addDetail(orderDetails, "Comissão esperada (10%)", money.format(interest.commissionPurchaseOrder.commissionCents / 100));
+          addDetail(orderDetails, "Líquido da vendedora", money.format(interest.commissionPurchaseOrder.sellerNetCents / 100));
+          const orderLink = document.createElement("a"); orderLink.className = "document-button"; orderLink.href = `/api/interesses/${interest.id}/ordem-compra`; orderLink.target = "_blank"; orderLink.rel = "noopener"; orderLink.textContent = `Visualizar Ordem de Compra — ${interest.commissionPurchaseOrder.name}`;
+          order.append(orderTitle, orderDetails, orderLink); article.append(order);
+        }
         if (["received", "resubmitted"].includes(interest.status)) {
           const review = document.createElement("section");
           review.className = "material-review";
@@ -1248,9 +1261,39 @@
             const nextStep = document.createElement("p"); nextStep.className = "interest-note"; nextStep.textContent = "Resposta da vendedora retida para a próxima revisão administrativa."; article.append(nextStep);
           }
         } else if (interest.status === "agreement_confirmed") {
-          const nextStep = document.createElement("p"); nextStep.className = "interest-note"; nextStep.textContent = "Acordo confirmado. A negociação está em formalização e o material ainda não foi marcado como vendido."; article.append(nextStep);
+          const nextStep = document.createElement("p"); nextStep.className = "interest-note"; nextStep.textContent = "Aguardando a empresa vendedora aceitar o termo de comissão e anexar a Ordem de Compra."; article.append(nextStep);
+        } else if (interest.status === "commission_po_submitted") {
+          const review = document.createElement("section"); review.className = "material-review";
+          const actions = document.createElement("div"); actions.className = "actions";
+          const approve = document.createElement("button"); approve.className = "action-button approve-button"; approve.type = "button"; approve.textContent = "Aprovar Ordem de Compra e liberar contatos";
+          const correction = document.createElement("button"); correction.className = "action-button reject-button"; correction.type = "button"; correction.textContent = "Solicitar correção";
+          const reject = document.createElement("button"); reject.className = "action-button reject-button"; reject.type = "button"; reject.textContent = "Rejeitar e encerrar negociação";
+          actions.append(approve, correction, reject);
+          const reasonForm = document.createElement("div"); reasonForm.hidden = true;
+          const reasonLabel = document.createElement("label"); const reason = document.createElement("textarea"); reason.maxLength = 500;
+          const confirmDecision = document.createElement("button"); confirmDecision.className = "action-button reject-button"; confirmDecision.type = "button";
+          const feedback = document.createElement("p"); feedback.className = "feedback"; feedback.hidden = true; feedback.role = "status";
+          let pendingStatus = "";
+          reasonForm.append(reasonLabel, reason, confirmDecision);
+          const decide = async (statusValue) => {
+            if (statusValue !== "commission_secured" && !reason.value.trim()) { reason.setCustomValidity("Informe o motivo."); reason.reportValidity(); return; }
+            reason.setCustomValidity(""); approve.disabled = true; correction.disabled = true; reject.disabled = true; confirmDecision.disabled = true; feedback.hidden = true;
+            try {
+              const response = await fetch(`/api/interesses/${interest.id}`, { method: "PATCH", headers: { "Content-Type": "application/json", Accept: "application/json" }, body: JSON.stringify({ status: statusValue, commissionCorrectionReason: reason.value }) });
+              const result = await response.json(); if (!response.ok) throw new Error(result.message || "Não foi possível concluir a análise."); Object.assign(interest, result.interest); article.replaceWith(createInterestCard(interest));
+            } catch (error) { feedback.textContent = error.message; feedback.hidden = false; approve.disabled = false; correction.disabled = false; reject.disabled = false; confirmDecision.disabled = false; }
+          };
+          approve.addEventListener("click", () => { if (confirm("Confirma a Ordem de Compra e a liberação dos contatos entre as empresas?")) decide("commission_secured"); });
+          correction.addEventListener("click", () => { pendingStatus = "commission_po_correction_requested"; reasonLabel.textContent = "Motivo da correção *"; reason.placeholder = "Explique o que deve ser corrigido na Ordem de Compra."; confirmDecision.textContent = "Confirmar solicitação de correção"; reasonForm.hidden = false; reason.focus(); });
+          reject.addEventListener("click", () => { pendingStatus = "commission_po_rejected"; reasonLabel.textContent = "Motivo da rejeição *"; reason.placeholder = "Explique por que a negociação será encerrada."; confirmDecision.textContent = "Confirmar rejeição e encerramento"; reasonForm.hidden = false; reason.focus(); });
+          confirmDecision.addEventListener("click", () => { if (pendingStatus === "commission_po_rejected" && !confirm("Esta decisão encerrará a negociação sem venda. Deseja continuar?")) return; decide(pendingStatus); });
+          review.append(actions, reasonForm, feedback); article.append(review);
+        } else if (interest.status === "commission_po_correction_requested") {
+          const nextStep = document.createElement("p"); nextStep.className = "interest-note"; nextStep.textContent = "Aguardando a empresa vendedora substituir a Ordem de Compra."; article.append(nextStep);
+        } else if (interest.status === "commission_secured") {
+          const nextStep = document.createElement("p"); nextStep.className = "interest-note"; nextStep.textContent = "Comissão formalmente garantida por Ordem de Compra. Os contatos foram liberados para as duas empresas."; article.append(nextStep);
         } else if (interest.status === "closed_no_sale") {
-          const nextStep = document.createElement("p"); nextStep.className = "interest-note"; nextStep.textContent = "Negociação encerrada sem venda por decisão da compradora."; article.append(nextStep);
+          const nextStep = document.createElement("p"); nextStep.className = "interest-note"; nextStep.textContent = interest.closureReason ? `Negociação encerrada sem venda: ${interest.closureReason}` : "Negociação encerrada sem venda por decisão da compradora."; article.append(nextStep);
         }
         return article;
       }

@@ -35,14 +35,16 @@ export async function onRequestGet(context) {
       const safe = ({ sellerCompanyId, buyerCompanyId, ...item }) => item;
       const safeForBuyer = (item) => {
         const visible = safe(item);
-        const { sellerResponseHistory, sellerCorrectionReason, sellerAdjustmentResponse, buyerDecisionHistory, ...withoutInternalReview } = visible;
+        const { sellerResponseHistory, sellerCorrectionReason, sellerAdjustmentResponse, buyerDecisionHistory, commissionPurchaseOrder, commissionPurchaseOrderHistory, commissionCorrectionReason, closureReason, ...withoutInternalReview } = visible;
+        if (["commission_po_submitted", "commission_po_correction_requested"].includes(item.status)) return { ...withoutInternalReview, status: "agreement_confirmed" };
         if (item.status === "agreement_confirmed") return { ...withoutInternalReview, sellerAdjustmentResponse };
+        if (item.status === "commission_secured") return { ...withoutInternalReview, sellerAdjustmentResponse };
         if (["response_shared", "buyer_accepted", "buyer_adjustment_requested", "buyer_adjustment_correction_requested", "seller_adjustment_requested", "seller_adjustment_response_received", "closed_no_sale"].includes(item.status)) return withoutInternalReview;
         const { sellerResponse, ...protectedItem } = withoutInternalReview;
         return protectedItem;
       };
       const safeForSeller = (item) => {
-        if (["seller_adjustment_requested", "seller_adjustment_response_received", "agreement_confirmed"].includes(item.status)) return safe(item);
+        if (["seller_adjustment_requested", "seller_adjustment_response_received", "agreement_confirmed", "commission_po_submitted", "commission_po_correction_requested", "commission_secured"].includes(item.status)) return safe(item);
         const { buyerDecision, buyerDecisionHistory, buyerAdjustmentCorrectionReason, ...visible } = safe(item);
         return ["buyer_accepted", "buyer_adjustment_requested"].includes(item.status) ? { ...visible, status: "buyer_review_pending_admin" } : visible;
       };
@@ -50,12 +52,15 @@ export async function onRequestGet(context) {
       const materialIds = [...new Set(related.map((item) => item.materialId))];
       const advertisements = await Promise.all(materialIds.map((id) => context.env.CADASTROS.get(`anuncio:${id}`, "json")));
       const advertisementsById = new Map(advertisements.filter(Boolean).map((advertisement) => [advertisement.id, advertisement]));
+      const releasedCompanyIds = [...new Set(related.filter((item) => ["commission_secured", "sold"].includes(item.status)).map((item) => item.buyerCompanyId === session.companyId ? item.sellerCompanyId : item.buyerCompanyId))];
+      const releasedCompanies = await Promise.all(releasedCompanyIds.map((id) => context.env.CADASTROS.get(`cadastro:${id}:dados`, "json")));
+      const releasedCompaniesById = new Map(releasedCompanies.filter(Boolean).map((company) => [company.id, company]));
       const companyView = (item) => {
         const perspective = item.buyerCompanyId === session.companyId ? "buyer" : "seller";
         const advertisement = advertisementsById.get(item.materialId);
         const relevantUpdates = perspective === "buyer"
-          ? [item.decidedAt, item.responseSharedAt, item.buyerAdjustmentCorrectionRequestedAt, item.agreementConfirmedAt]
-          : [item.sellerRequestedAt, item.sellerCorrectionRequestedAt, item.buyerAdjustmentSharedAt, item.agreementConfirmedAt];
+          ? [item.decidedAt, item.responseSharedAt, item.buyerAdjustmentCorrectionRequestedAt, item.agreementConfirmedAt, item.commissionSecuredAt]
+          : [item.sellerRequestedAt, item.sellerCorrectionRequestedAt, item.buyerAdjustmentSharedAt, item.agreementConfirmedAt, item.commissionCorrectionRequestedAt, item.commissionSecuredAt];
         const readAt = perspective === "buyer" ? item.buyerReadAt : item.sellerReadAt;
         const unreadCount = relevantUpdates.filter((timestamp) => timestamp && (!readAt || timestamp > readAt)).length;
         const advertised = perspective === "seller" && advertisement ? {
@@ -69,14 +74,17 @@ export async function onRequestGet(context) {
         } : undefined;
         const visible = perspective === "buyer" ? safeForBuyer(item) : safeForSeller(item);
         const { buyerReadAt, sellerReadAt, ...withoutReadReceipts } = visible;
-        return { ...withoutReadReceipts, perspective, unreadCount, materialCondition: advertisement?.condition || "", ...(advertised ? { advertised } : {}) };
+        const counterpartyId = perspective === "buyer" ? item.sellerCompanyId : item.buyerCompanyId;
+        const counterpartyCompany = releasedCompaniesById.get(counterpartyId);
+        const counterparty = counterpartyCompany ? { companyName: counterpartyCompany.companyName, primaryContact: counterpartyCompany.primaryContact, primaryEmail: counterpartyCompany.primaryEmail } : undefined;
+        return { ...withoutReadReceipts, perspective, unreadCount, materialCondition: advertisement?.condition || "", ...(advertised ? { advertised } : {}), ...(counterparty ? { counterparty } : {}) };
       };
       const ownInterests = interests.filter((item) => item.buyerCompanyId === session.companyId).map(safeForBuyer);
       const negotiations = interests
-        .filter((item) => ["in_intermediation", "awaiting_seller", "seller_response_received", "seller_correction_requested", "response_shared", "buyer_accepted", "buyer_adjustment_requested", "buyer_adjustment_correction_requested", "seller_adjustment_requested", "seller_adjustment_response_received", "agreement_confirmed"].includes(item.status) && [item.buyerCompanyId, item.sellerCompanyId].includes(session.companyId))
+        .filter((item) => ["in_intermediation", "awaiting_seller", "seller_response_received", "seller_correction_requested", "response_shared", "buyer_accepted", "buyer_adjustment_requested", "buyer_adjustment_correction_requested", "seller_adjustment_requested", "seller_adjustment_response_received", "agreement_confirmed", "commission_po_submitted", "commission_po_correction_requested", "commission_secured"].includes(item.status) && [item.buyerCompanyId, item.sellerCompanyId].includes(session.companyId))
         .map(companyView);
       const soldMaterials = interests
-        .filter((item) => item.status === "sold" && [item.buyerCompanyId, item.sellerCompanyId].includes(session.companyId))
+        .filter((item) => ["sold", "closed_no_sale"].includes(item.status) && [item.buyerCompanyId, item.sellerCompanyId].includes(session.companyId))
         .map(companyView);
       [ownInterests, negotiations, soldMaterials].forEach((list) => list.sort((first, second) => second.createdAt.localeCompare(first.createdAt)));
       return Response.json({ interests: ownInterests, negotiations, soldMaterials }, { headers: { "Cache-Control": "private, no-store" } });

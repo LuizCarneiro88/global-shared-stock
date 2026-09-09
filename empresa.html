@@ -291,7 +291,7 @@
       const conditionLabels = { new: "Novo", used: "Usado", refurbished: "Recondicionado", scrap: "Sucata" };
       const unitLabels = { unit: "Unidade", lot: "Lote", kg: "Quilograma", meter: "Metro", square_meter: "Metro quadrado (m²)", cubic_meter: "Metro cúbico (m³)", liter: "Litro" };
       const statusLabels = { pending: "Aguardando análise", approved: "Aprovado", rejected: "Rejeitado" };
-      const interestStatusLabels = { received: "Recebido", resubmitted: "Reenviado para avaliação", in_intermediation: "Em intermediação", awaiting_seller: "Aguardando resposta do vendedor", seller_response_received: "Resposta em análise pela Global Shared Stock", seller_correction_requested: "Correção solicitada ao vendedor", response_shared: "Resposta do vendedor recebida", buyer_accepted: "Condições aceitas", buyer_adjustment_requested: "Ajuste em análise", buyer_adjustment_correction_requested: "Correção solicitada", seller_adjustment_requested: "Aguardando resposta ao ajuste", seller_adjustment_response_received: "Resposta ao ajuste em análise", agreement_confirmed: "Acordo confirmado — em formalização", buyer_review_pending_admin: "Atualização em análise", closed_no_sale: "Encerrado sem venda", rejected: "Rejeitado", sold: "Vendido" };
+      const interestStatusLabels = { received: "Recebido", resubmitted: "Reenviado para avaliação", in_intermediation: "Em intermediação", awaiting_seller: "Aguardando resposta do vendedor", seller_response_received: "Resposta em análise pela Global Shared Stock", seller_correction_requested: "Correção solicitada ao vendedor", response_shared: "Resposta do vendedor recebida", buyer_accepted: "Condições aceitas", buyer_adjustment_requested: "Ajuste em análise", buyer_adjustment_correction_requested: "Correção solicitada", seller_adjustment_requested: "Aguardando resposta ao ajuste", seller_adjustment_response_received: "Resposta ao ajuste em análise", agreement_confirmed: "Acordo confirmado — em formalização", commission_po_submitted: "Ordem de Compra em análise", commission_po_correction_requested: "Correção da Ordem de Compra solicitada", commission_secured: "Comissão garantida — contatos liberados", buyer_review_pending_admin: "Atualização em análise", closed_no_sale: "Encerrado sem venda", rejected: "Rejeitado", sold: "Vendido" };
       const sellerAvailabilityLabels = { available: "Disponível", partial: "Parcialmente disponível", unavailable: "Indisponível" };
       const sellerDeadlineLabels = { immediate: "Imediato", "7_days": "Em até 7 dias", "15_days": "Em até 15 dias", "30_days": "Em até 30 dias", over_30_days: "Acima de 30 dias", not_applicable: "Não se aplica" };
       const deadlineLabels = { immediate: "Imediato", "7_days": "Em até 7 dias", "15_days": "Em até 15 dias", "30_days": "Em até 30 dias", flexible: "Prazo flexível" };
@@ -881,6 +881,9 @@
         if (negotiation.sellerAdjustmentResponse?.type === "rejected") addEvent("seller", `Ajuste recusado: ${negotiation.sellerAdjustmentResponse.reason}`, negotiation.sellerAdjustmentResponse.decidedAt);
         if (negotiation.sellerAdjustmentResponse?.type === "counter") addEvent("seller", `Contraproposta\nQuantidade: ${negotiation.sellerAdjustmentResponse.confirmedQuantity} ${unitName || ""}\nPreço: ${money.format(negotiation.sellerAdjustmentResponse.confirmedUnitPriceCents / 100)}\nPrazo: ${sellerDeadlineLabels[negotiation.sellerAdjustmentResponse.availabilityDeadline]}\n${negotiation.sellerAdjustmentResponse.note}`, negotiation.sellerAdjustmentResponse.decidedAt);
         if (negotiation.agreementConfirmedAt) addEvent("platform", "Acordo confirmado. Negociação em formalização.", negotiation.agreementConfirmedAt);
+        if (negotiation.commissionPurchaseOrder?.uploadedAt) addEvent("seller", "Termo de comissão aceito e Ordem de Compra anexada.", negotiation.commissionPurchaseOrder.uploadedAt);
+        if (negotiation.commissionCorrectionRequestedAt) addEvent("platform", `Correção solicitada na Ordem de Compra: ${negotiation.commissionCorrectionReason}`, negotiation.commissionCorrectionRequestedAt);
+        if (negotiation.commissionSecuredAt) addEvent("platform", "Ordem de Compra aprovada. Comissão formalmente garantida e contatos liberados.", negotiation.commissionSecuredAt);
         events.sort((first, second) => new Date(first.time) - new Date(second.time));
 
         const section = document.createElement("section"); section.className = "negotiation-history";
@@ -912,7 +915,7 @@
         title.textContent = negotiation.materialDescription;
         const status = document.createElement("span");
         status.className = "status-pill";
-        status.textContent = sold ? (negotiation.perspective === "seller" ? "Vendido" : "Comprado") : negotiation.status === "agreement_confirmed" ? "Acordo confirmado — em formalização" : negotiation.status === "awaiting_seller" ? (negotiation.perspective === "seller" ? "Resposta solicitada" : "Aguardando vendedor") : negotiation.status === "seller_response_received" ? (negotiation.perspective === "seller" ? "Resposta enviada" : "Resposta em análise") : negotiation.status === "seller_correction_requested" ? (negotiation.perspective === "seller" ? "Correção solicitada" : "Resposta em correção") : negotiation.status === "response_shared" ? (negotiation.perspective === "seller" ? "Resposta encaminhada" : "Resposta recebida") : negotiation.status === "seller_adjustment_requested" ? "Ajuste recebido" : negotiation.status === "seller_adjustment_response_received" ? "Resposta ao ajuste enviada" : negotiation.status === "buyer_adjustment_correction_requested" ? "Ajuste em correção" : negotiation.status === "buyer_review_pending_admin" ? "Atualização em análise" : negotiation.status === "buyer_accepted" ? "Condições aceitas" : negotiation.status === "buyer_adjustment_requested" ? "Ajuste em análise" : "Em intermediação";
+        status.textContent = sold ? (negotiation.status === "closed_no_sale" ? "Encerrado sem venda" : negotiation.perspective === "seller" ? "Vendido" : "Comprado") : interestStatusLabels[negotiation.status] || "Em intermediação";
         header.append(title, status);
         const unitName = negotiation.unit === "other" ? negotiation.otherUnit : unitLabels[negotiation.unit];
         const information = document.createElement("p");
@@ -941,6 +944,28 @@
           item.append(reference);
         }
         appendCompanyNegotiationHistory(item, negotiation, unitName);
+        if (!sold && negotiation.perspective === "seller" && ["agreement_confirmed", "commission_po_correction_requested"].includes(negotiation.status) && negotiation.sellerResponse) {
+          const accepted = negotiation.sellerAdjustmentResponse?.type === "accepted" ? negotiation.buyerDecision : null;
+          const confirmedQuantity = accepted?.requestedQuantity || negotiation.sellerResponse.confirmedQuantity;
+          const unitPriceCents = accepted?.requestedUnitPriceCents || negotiation.sellerResponse.confirmedUnitPriceCents;
+          const totalCents = Math.round(confirmedQuantity * unitPriceCents);
+          const commissionCents = Math.round(totalCents * 0.1);
+          const formalization = document.createElement("form"); formalization.className = "fields reference-data shared-response";
+          const heading = document.createElement("h4"); heading.className = "field-wide"; heading.textContent = "Garantia da comissão por Ordem de Compra";
+          if (negotiation.status === "commission_po_correction_requested") { const correction = document.createElement("p"); correction.className = "message error field-wide"; correction.textContent = `Correção solicitada: ${negotiation.commissionCorrectionReason}`; formalization.append(heading, correction); } else formalization.append(heading);
+          const values = document.createElement("div"); values.className = "reference-grid field-wide";
+          const addValue = (label, value) => { const field = document.createElement("div"); field.className = "reference-item"; const name = document.createElement("span"); name.textContent = label; const content = document.createElement("strong"); content.textContent = value; field.append(name, content); values.append(field); };
+          addValue("Valor total da venda", money.format(totalCents / 100)); addValue("Comissão de 10%", money.format(commissionCents / 100)); addValue("Líquido da vendedora", money.format((totalCents - commissionCents) / 100));
+          const termLabel = document.createElement("label"); termLabel.className = "adjustment-option field-wide"; const term = document.createElement("input"); term.type = "checkbox"; term.required = true; termLabel.append(term, document.createTextNode(` Aceito a comissão de 10% no valor de ${money.format(commissionCents / 100)}.`));
+          const fileField = document.createElement("div"); fileField.className = "field-wide"; const fileLabel = document.createElement("label"); fileLabel.textContent = "Ordem de Compra da comissão *"; const file = document.createElement("input"); file.type = "file"; file.accept = "application/pdf,image/jpeg,image/png,image/webp"; file.required = true; fileField.append(fileLabel, file);
+          const submit = document.createElement("button"); submit.type = "submit"; submit.textContent = negotiation.status === "commission_po_correction_requested" ? "Enviar Ordem de Compra corrigida" : "Enviar Ordem de Compra";
+          const feedback = document.createElement("p"); feedback.className = "message field-wide"; feedback.hidden = true;
+          formalization.append(values, termLabel, fileField, submit, feedback);
+          formalization.addEventListener("submit", async (event) => { event.preventDefault(); if (!formalization.reportValidity()) return; submit.disabled = true; feedback.hidden = true; const data = new FormData(); data.set("termAccepted", "yes"); data.set("file", file.files[0]); try { const response = await fetch(`/api/interesses/${negotiation.id}/ordem-compra`, { method: "POST", body: data }); const result = await response.json(); if (!response.ok) throw new Error(result.message || "Não foi possível enviar a Ordem de Compra."); feedback.textContent = result.message; feedback.className = "message success field-wide"; feedback.hidden = false; await loadInterests(); } catch (error) { feedback.textContent = error.message; feedback.className = "message error field-wide"; feedback.hidden = false; submit.disabled = false; } });
+          item.append(formalization);
+        }
+        if (!sold && negotiation.perspective === "seller" && negotiation.status === "commission_po_submitted") { const waiting = document.createElement("p"); waiting.className = "message success"; waiting.textContent = "Ordem de Compra enviada. Aguarde a validação da Global Shared Stock."; item.append(waiting); }
+        if (!sold && negotiation.status === "commission_secured" && negotiation.counterparty) { const contact = document.createElement("section"); contact.className = "reference-data shared-response"; const heading = document.createElement("h4"); heading.textContent = "Contato liberado para conclusão"; const text = document.createElement("p"); text.textContent = `${negotiation.counterparty.companyName}\nContato: ${negotiation.counterparty.primaryContact}\nE-mail: ${negotiation.counterparty.primaryEmail}`; text.style.whiteSpace = "pre-line"; contact.append(heading, text); item.append(contact); }
         if (!sold && negotiation.perspective === "seller" && negotiation.status === "seller_adjustment_requested" && negotiation.buyerDecision) {
           const proposal = document.createElement("section"); proposal.className = "reference-data shared-response";
           const proposalTitle = document.createElement("h4"); proposalTitle.textContent = "Ajuste solicitado — identidade protegida";
@@ -1069,7 +1094,7 @@
         const perspective = representative.perspective === "seller" ? "Vendendo" : "Comprando";
         meta.textContent = `${perspective} · ${negotiations.length} ${negotiations.length === 1 ? "negociação" : "negociações"}`;
         const needsAction = negotiations.some((negotiation) => negotiation.perspective === "seller"
-          ? ["awaiting_seller", "seller_correction_requested", "seller_adjustment_requested"].includes(negotiation.status)
+          ? ["awaiting_seller", "seller_correction_requested", "seller_adjustment_requested", "agreement_confirmed", "commission_po_correction_requested"].includes(negotiation.status)
           : ["response_shared", "buyer_adjustment_correction_requested"].includes(negotiation.status));
         if (needsAction) { const alert = document.createElement("span"); alert.className = "negotiation-alert"; alert.textContent = "● Ação necessária"; meta.append(alert); }
         const updateGroupBadge = () => {
