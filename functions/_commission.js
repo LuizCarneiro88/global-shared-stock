@@ -1,6 +1,6 @@
 import { safeFilename } from "./_material-files.js";
 
-export const INTEREST_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{12}$/i;
+export const INTEREST_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 export const MAX_PURCHASE_ORDER_SIZE = 10 * 1024 * 1024;
 
 export function purchaseOrderObjectKey(interestId, fileId) {
