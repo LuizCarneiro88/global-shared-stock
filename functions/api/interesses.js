@@ -53,6 +53,11 @@ export async function onRequestGet(context) {
       const companyView = (item) => {
         const perspective = item.buyerCompanyId === session.companyId ? "buyer" : "seller";
         const advertisement = advertisementsById.get(item.materialId);
+        const relevantUpdates = perspective === "buyer"
+          ? [item.decidedAt, item.responseSharedAt, item.buyerAdjustmentCorrectionRequestedAt, item.agreementConfirmedAt]
+          : [item.sellerRequestedAt, item.sellerCorrectionRequestedAt, item.buyerAdjustmentSharedAt, item.agreementConfirmedAt];
+        const readAt = perspective === "buyer" ? item.buyerReadAt : item.sellerReadAt;
+        const unreadCount = relevantUpdates.filter((timestamp) => timestamp && (!readAt || timestamp > readAt)).length;
         const advertised = perspective === "seller" && advertisement ? {
           manufacturer: advertisement.manufacturer || "",
           condition: advertisement.condition,
@@ -62,7 +67,9 @@ export async function onRequestGet(context) {
           unitPriceCents: advertisement.unitPriceCents,
           hasCertificate: Boolean(advertisement.hasCertificate),
         } : undefined;
-        return { ...(perspective === "buyer" ? safeForBuyer(item) : safeForSeller(item)), perspective, materialCondition: advertisement?.condition || "", ...(advertised ? { advertised } : {}) };
+        const visible = perspective === "buyer" ? safeForBuyer(item) : safeForSeller(item);
+        const { buyerReadAt, sellerReadAt, ...withoutReadReceipts } = visible;
+        return { ...withoutReadReceipts, perspective, unreadCount, materialCondition: advertisement?.condition || "", ...(advertised ? { advertised } : {}) };
       };
       const ownInterests = interests.filter((item) => item.buyerCompanyId === session.companyId).map(safeForBuyer);
       const negotiations = interests

@@ -28,6 +28,14 @@ export async function onRequestPatch(context) {
   if (!interest) return error("Interesse não encontrado.", 404);
 
   if (session?.role === "company") {
+    if (input.action === "mark_read") {
+      const perspective = interest.buyerCompanyId === session.companyId ? "buyer" : interest.sellerCompanyId === session.companyId ? "seller" : "";
+      if (!perspective) return error("Esta negociação não pertence à empresa conectada.", 403);
+      const readField = perspective === "buyer" ? "buyerReadAt" : "sellerReadAt";
+      const updated = { ...interest, [readField]: new Date().toISOString() };
+      await context.env.CADASTROS.put(key, JSON.stringify(updated));
+      return Response.json({ success: true }, { headers: { "Cache-Control": "private, no-store" } });
+    }
     if (interest.sellerCompanyId === session.companyId && ["awaiting_seller", "seller_correction_requested"].includes(interest.status)) {
       const availability = String(input.availability || "");
       const confirmedQuantity = Number(input.confirmedQuantity);

@@ -20,6 +20,7 @@
       .workspace-tabs { display: flex; gap: 8px; margin: 0 0 22px; padding: 6px; overflow-x: auto; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); scrollbar-width: thin; }
       .workspace-tab { flex: 1 0 auto; min-height: 44px; padding: 9px 13px; border-color: transparent; background: transparent; color: var(--muted); white-space: nowrap; }
       .workspace-tab[aria-selected="true"] { border-color: #555b63; background: var(--silver); color: #121519; }
+      .tab-notification { display: inline-grid; place-items: center; min-width: 22px; height: 22px; margin-left: 6px; padding: 0 6px; border-radius: 999px; background: #d64b3f; color: #fff; font-size: .72rem; font-weight: 850; }
       .workspace-tab-panel[hidden] { display: none; }
       .panel { margin-top: 20px; padding: 22px 16px; border: 1px solid var(--line); border-radius: 18px; background: var(--surface); }
       .fields { display: grid; gap: 16px; }
@@ -49,14 +50,20 @@
       .material-list { display: grid; gap: 12px; margin: 0; padding: 0; list-style: none; }
       .material-card { padding: 16px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface-light); }
       .negotiation-group { border: 1px solid var(--line); border-radius: 12px; background: var(--surface-light); overflow: hidden; }
-      .negotiation-group > summary { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px 12px; align-items: center; padding: 16px; cursor: pointer; list-style: none; }
+      .negotiation-group > summary { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 8px 12px; align-items: center; padding: 16px; cursor: pointer; list-style: none; }
       .negotiation-group > summary::-webkit-details-marker { display: none; }
       .negotiation-group > summary::after { content: "Abrir"; color: var(--silver); font-size: .76rem; font-weight: 750; }
       .negotiation-group[open] > summary::after { content: "Fechar"; }
       .negotiation-group-title { min-width: 0; overflow-wrap: anywhere; font-size: 1rem; }
       .negotiation-group-meta { grid-column: 1 / -1; color: var(--muted); font-size: .78rem; }
       .negotiation-alert { display: inline-block; margin-left: 6px; color: var(--success); font-weight: 800; }
+      .unread-badge { display: inline-grid; place-items: center; min-width: 28px; height: 28px; padding: 0 7px; border-radius: 999px; background: #d64b3f; color: #fff; font-size: .78rem; font-weight: 850; box-shadow: 0 0 0 3px rgba(214, 75, 63, .15); }
       .negotiation-threads { display: grid; gap: 12px; padding: 0 12px 12px; }
+      .negotiation-thread { border: 1px solid var(--line); border-radius: 10px; background: #101317; overflow: hidden; }
+      .negotiation-thread > summary { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 13px; cursor: pointer; list-style: none; }
+      .negotiation-thread > summary::-webkit-details-marker { display: none; }
+      .negotiation-thread-label { min-width: 0; color: var(--silver); font-size: .82rem; font-weight: 750; }
+      .negotiation-thread .material-card { border: 0; border-top: 1px solid var(--line); border-radius: 0; }
       .material-header { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 10px; }
       .material-card p { margin: 8px 0 0; color: var(--muted); line-height: 1.45; }
       .material-values { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 14px; font-size: 0.82rem; }
@@ -106,7 +113,7 @@
       <nav class="workspace-tabs" aria-label="Áreas da empresa" role="tablist">
         <button id="materials-tab" class="workspace-tab" type="button" role="tab" aria-selected="true" aria-controls="materials-panel">Materiais</button>
         <button id="interests-tab" class="workspace-tab" type="button" role="tab" aria-selected="false" aria-controls="interests-panel">Interesses</button>
-        <button id="negotiations-tab" class="workspace-tab" type="button" role="tab" aria-selected="false" aria-controls="negotiations-panel">Negociações</button>
+        <button id="negotiations-tab" class="workspace-tab" type="button" role="tab" aria-selected="false" aria-controls="negotiations-panel">Negociações <span id="negotiations-notification" class="tab-notification" hidden></span></button>
         <button id="completed-tab" class="workspace-tab" type="button" role="tab" aria-selected="false" aria-controls="completed-panel">Concluídos</button>
       </nav>
 
@@ -248,6 +255,9 @@
       const certificateInput = document.querySelector("#certificate-input");
       const photoList = document.querySelector("#photo-list");
       const certificateList = document.querySelector("#certificate-list");
+      const negotiationsNotification = document.querySelector("#negotiations-notification");
+      let loadedNegotiations = [];
+      let interestsAreLoading = false;
       const workspaceTabs = [...document.querySelectorAll(".workspace-tab")];
       const workspacePanels = [...document.querySelectorAll(".workspace-tab-panel")];
 
@@ -894,7 +904,7 @@
       }
 
       function createNegotiationCard(negotiation, sold = false) {
-        const item = document.createElement("li");
+        const item = document.createElement(sold ? "li" : "article");
         item.className = "material-card";
         const header = document.createElement("div");
         header.className = "material-header";
@@ -1053,6 +1063,8 @@
         const details = document.createElement("details"); details.className = "negotiation-group";
         const summary = document.createElement("summary");
         const title = document.createElement("strong"); title.className = "negotiation-group-title"; title.textContent = representative.materialDescription;
+        const unreadCount = negotiations.reduce((total, negotiation) => total + Number(negotiation.unreadCount || 0), 0);
+        const unreadBadge = document.createElement("span"); unreadBadge.className = "unread-badge"; unreadBadge.textContent = String(unreadCount); unreadBadge.hidden = unreadCount === 0; unreadBadge.setAttribute("aria-label", `${unreadCount} atualizações não visualizadas`);
         const meta = document.createElement("span"); meta.className = "negotiation-group-meta";
         const perspective = representative.perspective === "seller" ? "Vendendo" : "Comprando";
         meta.textContent = `${perspective} · ${negotiations.length} ${negotiations.length === 1 ? "negociação" : "negociações"}`;
@@ -1060,9 +1072,29 @@
           ? ["awaiting_seller", "seller_correction_requested", "seller_adjustment_requested"].includes(negotiation.status)
           : ["response_shared", "buyer_adjustment_correction_requested"].includes(negotiation.status));
         if (needsAction) { const alert = document.createElement("span"); alert.className = "negotiation-alert"; alert.textContent = "● Ação necessária"; meta.append(alert); }
+        const updateGroupBadge = () => {
+          const remaining = negotiations.reduce((total, negotiation) => total + Number(negotiation.unreadCount || 0), 0);
+          unreadBadge.textContent = String(remaining); unreadBadge.hidden = remaining === 0; unreadBadge.setAttribute("aria-label", `${remaining} atualizações não visualizadas`);
+          updateNegotiationNotifications();
+        };
         const threads = document.createElement("div"); threads.className = "negotiation-threads";
-        negotiations.forEach((negotiation) => threads.append(createNegotiationCard(negotiation)));
-        summary.append(title, meta); details.append(summary, threads); wrapper.append(details); return wrapper;
+        negotiations.forEach((negotiation, index) => {
+          const thread = document.createElement("details"); thread.className = "negotiation-thread";
+          const threadSummary = document.createElement("summary");
+          const label = document.createElement("span"); label.className = "negotiation-thread-label"; label.textContent = `Negociação ${index + 1} · ${interestStatusLabels[negotiation.status] || "Em andamento"}`;
+          const threadBadge = document.createElement("span"); threadBadge.className = "unread-badge"; threadBadge.textContent = String(negotiation.unreadCount || 0); threadBadge.hidden = !Number(negotiation.unreadCount); threadBadge.setAttribute("aria-label", `${negotiation.unreadCount || 0} atualizações não visualizadas`);
+          threadSummary.append(label, threadBadge); thread.append(threadSummary, createNegotiationCard(negotiation)); threads.append(thread);
+          thread.addEventListener("toggle", async () => {
+            if (!thread.open || !Number(negotiation.unreadCount)) return;
+            try {
+              const response = await fetch(`/api/interesses/${negotiation.id}`, { method: "PATCH", headers: { "Content-Type": "application/json", Accept: "application/json" }, body: JSON.stringify({ action: "mark_read" }) });
+              if (!response.ok) return;
+              negotiation.unreadCount = 0; threadBadge.hidden = true; updateGroupBadge();
+            } catch {}
+          });
+        });
+        summary.append(title, unreadBadge, meta); details.append(summary, threads); wrapper.append(details);
+        return wrapper;
       }
 
       function groupNegotiations(negotiations) {
@@ -1075,13 +1107,24 @@
         return [...groups.values()].map(createNegotiationGroup);
       }
 
+      function updateNegotiationNotifications() {
+        const total = loadedNegotiations.reduce((sum, negotiation) => sum + Number(negotiation.unreadCount || 0), 0);
+        negotiationsNotification.textContent = String(total);
+        negotiationsNotification.hidden = total === 0;
+        negotiationsNotification.setAttribute("aria-label", `${total} atualizações não visualizadas`);
+      }
+
       async function loadInterests() {
+        if (interestsAreLoading) return;
+        interestsAreLoading = true;
         try {
           const response = await fetch("/api/interesses", { headers: { Accept: "application/json" } });
           const result = await response.json();
           if (!response.ok) throw new Error(result.message || "Não foi possível carregar os interesses.");
           interestList.replaceChildren(...result.interests.map(createInterestCard));
           emptyInterests.hidden = result.interests.length > 0;
+          loadedNegotiations = result.negotiations;
+          updateNegotiationNotifications();
           negotiationList.replaceChildren(...groupNegotiations(result.negotiations));
           emptyNegotiations.hidden = result.negotiations.length > 0;
           soldList.replaceChildren(...result.soldMaterials.map((interest) => createNegotiationCard(interest, true)));
@@ -1093,6 +1136,8 @@
           emptyNegotiations.hidden = false;
           emptySold.textContent = error.message;
           emptySold.hidden = false;
+        } finally {
+          interestsAreLoading = false;
         }
       }
 
@@ -1205,6 +1250,8 @@
       resetEditor();
       loadMaterials();
       loadInterests();
+      document.addEventListener("visibilitychange", () => { if (!document.hidden) loadInterests(); });
+      window.setInterval(() => { if (!document.hidden && !document.querySelector(".negotiation-group[open]")) loadInterests(); }, 15000);
     </script>
   </body>
 </html>
