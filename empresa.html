@@ -55,6 +55,21 @@
       .reference-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
       .reference-item span { display: block; color: var(--muted); font-size: .7rem; }
       .reference-item strong { display: block; margin-top: 3px; color: var(--text); font-size: .84rem; overflow-wrap: anywhere; }
+      .negotiation-history { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--line); }
+      .negotiation-history h4, .current-terms h4 { margin: 0 0 14px; color: var(--silver); font-size: .9rem; }
+      .chat-list { display: grid; gap: 12px; }
+      .chat-message { display: flex; width: 100%; }
+      .chat-message.own { justify-content: flex-end; }
+      .chat-message.other { justify-content: flex-start; }
+      .chat-message.platform { justify-content: center; }
+      .chat-bubble { width: min(88%, 520px); padding: 12px 14px; border: 1px solid var(--line); border-radius: 15px; background: #181c21; }
+      .chat-message.own .chat-bubble { border-bottom-right-radius: 4px; background: #242a31; }
+      .chat-message.other .chat-bubble { border-bottom-left-radius: 4px; }
+      .chat-message.platform .chat-bubble { width: min(94%, 580px); border-style: dashed; background: transparent; text-align: center; }
+      .chat-author { display: block; margin-bottom: 6px; color: var(--silver); font-size: .76rem; font-weight: 800; }
+      .material-card .chat-text { margin: 0; color: var(--text); white-space: pre-line; }
+      .chat-time { display: block; margin-top: 7px; color: var(--muted); font-size: .68rem; }
+      .current-terms { margin-top: 18px; padding: 14px; border: 1px solid #57735c; border-radius: 11px; background: rgba(87, 115, 92, .08); }
       .stock-warning { margin: 10px 0 0; color: var(--danger); font-size: .8rem; font-weight: 700; }
       .adjustment-options { display: grid; gap: 10px; }
       .adjustment-option { display: flex; align-items: center; gap: 9px; margin: 0; font-weight: 600; }
@@ -783,6 +798,52 @@
         return item;
       }
 
+      function appendCompanyNegotiationHistory(container, negotiation, unitName) {
+        const dateTime = (value) => new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short" }).format(new Date(value));
+        const topicLabels = { quantity: "Quantidade", price: "Preço", deadline: "Prazo", documentation: "Documentação" };
+        const events = [];
+        const addEvent = (actor, text, time) => { if (text && time) events.push({ actor, text, time }); };
+        addEvent("buyer", `Interesse registrado\nQuantidade: ${negotiation.quantity} ${unitName || ""}\nPrazo: ${deadlineLabels[negotiation.deadline]}\nAssunto: ${subjectLabels[negotiation.subject]}${negotiation.note ? `\n${negotiation.note}` : ""}`, negotiation.createdAt);
+        if (negotiation.decidedAt) addEvent("platform", "Interesse aceito para intermediação.", negotiation.decidedAt);
+        if (negotiation.sellerResponse) addEvent("seller", `Disponibilidade: ${sellerAvailabilityLabels[negotiation.sellerResponse.availability]}\nQuantidade: ${negotiation.sellerResponse.confirmedQuantity} ${unitName || ""}\nPreço unitário: ${money.format(negotiation.sellerResponse.confirmedUnitPriceCents / 100)}\nPrazo: ${sellerDeadlineLabels[negotiation.sellerResponse.availabilityDeadline]}\nDocumentação: ${negotiation.sellerResponse.documentationAvailable === "yes" ? "Disponível" : "Não disponível"}${negotiation.sellerResponse.note ? `\n${negotiation.sellerResponse.note}` : ""}`, negotiation.sellerResponse.respondedAt);
+        if (negotiation.responseSharedAt) addEvent("platform", "Resposta da empresa vendedora encaminhada à empresa compradora.", negotiation.responseSharedAt);
+        if (negotiation.buyerDecision?.type === "accepted") addEvent("buyer", "Condições apresentadas aceitas.", negotiation.buyerDecision.decidedAt);
+        if (negotiation.buyerDecision?.type === "rejected") addEvent("buyer", `Condições recusadas: ${negotiation.buyerDecision.reason}`, negotiation.buyerDecision.decidedAt);
+        if (negotiation.buyerDecision?.type === "adjustment_requested") {
+          const decision = negotiation.buyerDecision;
+          const lines = [`Ajuste solicitado: ${decision.topics.map((topic) => topicLabels[topic]).join(", ")}`];
+          if (decision.requestedQuantity) lines.push(`Quantidade desejada: ${decision.requestedQuantity} ${unitName || ""}`);
+          if (decision.requestedUnitPriceCents) lines.push(`Preço desejado: ${money.format(decision.requestedUnitPriceCents / 100)}`);
+          if (decision.requestedDeadline) lines.push(`Prazo desejado: ${sellerDeadlineLabels[decision.requestedDeadline]}`);
+          lines.push(decision.note); addEvent("buyer", lines.join("\n"), decision.decidedAt);
+        }
+        if (negotiation.buyerAdjustmentSharedAt) addEvent("platform", "Pedido de ajuste encaminhado à empresa vendedora.", negotiation.buyerAdjustmentSharedAt);
+        if (negotiation.sellerAdjustmentResponse?.type === "accepted") addEvent("seller", "Ajuste solicitado aceito.", negotiation.sellerAdjustmentResponse.decidedAt);
+        if (negotiation.sellerAdjustmentResponse?.type === "rejected") addEvent("seller", `Ajuste recusado: ${negotiation.sellerAdjustmentResponse.reason}`, negotiation.sellerAdjustmentResponse.decidedAt);
+        if (negotiation.sellerAdjustmentResponse?.type === "counter") addEvent("seller", `Contraproposta\nQuantidade: ${negotiation.sellerAdjustmentResponse.confirmedQuantity} ${unitName || ""}\nPreço: ${money.format(negotiation.sellerAdjustmentResponse.confirmedUnitPriceCents / 100)}\nPrazo: ${sellerDeadlineLabels[negotiation.sellerAdjustmentResponse.availabilityDeadline]}\n${negotiation.sellerAdjustmentResponse.note}`, negotiation.sellerAdjustmentResponse.decidedAt);
+        if (negotiation.agreementConfirmedAt) addEvent("platform", "Acordo confirmado. Negociação em formalização.", negotiation.agreementConfirmedAt);
+        events.sort((first, second) => new Date(first.time) - new Date(second.time));
+
+        const section = document.createElement("section"); section.className = "negotiation-history";
+        const title = document.createElement("h4"); title.textContent = "Histórico da negociação";
+        const list = document.createElement("div"); list.className = "chat-list";
+        events.forEach((event) => { const own = event.actor === negotiation.perspective; const side = event.actor === "platform" ? "platform" : own ? "own" : "other"; const authorName = event.actor === "platform" ? "Global Shared Stock" : event.actor === "buyer" ? "Empresa compradora" : "Empresa vendedora"; const row = document.createElement("div"); row.className = `chat-message ${side}`; const bubble = document.createElement("div"); bubble.className = "chat-bubble"; const author = document.createElement("strong"); author.className = "chat-author"; author.textContent = authorName; const text = document.createElement("p"); text.className = "chat-text"; text.textContent = event.text; const time = document.createElement("time"); time.className = "chat-time"; time.dateTime = event.time; time.textContent = dateTime(event.time); bubble.append(author, text, time); row.append(bubble); list.append(row); });
+        section.append(title, list); container.append(section);
+
+        if (!negotiation.sellerResponse) return;
+        const current = negotiation.sellerAdjustmentResponse?.type === "counter" ? negotiation.sellerAdjustmentResponse : negotiation.sellerResponse;
+        const acceptedAdjustment = negotiation.sellerAdjustmentResponse?.type === "accepted" ? negotiation.buyerDecision : null;
+        const quantity = acceptedAdjustment?.requestedQuantity || current.confirmedQuantity;
+        const unitPriceCents = acceptedAdjustment?.requestedUnitPriceCents || current.confirmedUnitPriceCents;
+        const deadline = acceptedAdjustment?.requestedDeadline || current.availabilityDeadline;
+        const summary = document.createElement("section"); summary.className = "current-terms";
+        const summaryTitle = document.createElement("h4"); summaryTitle.textContent = "Condições atuais da negociação";
+        const grid = document.createElement("div"); grid.className = "reference-grid";
+        const add = (label, value) => { const field = document.createElement("div"); field.className = "reference-item"; const name = document.createElement("span"); name.textContent = label; const content = document.createElement("strong"); content.textContent = value; field.append(name, content); grid.append(field); };
+        add("Disponibilidade", sellerAvailabilityLabels[negotiation.sellerResponse.availability]); add("Quantidade confirmada", `${quantity} ${unitName || ""}`.trim()); add("Preço unitário", money.format(unitPriceCents / 100)); add("Valor total", money.format((quantity * unitPriceCents) / 100)); add("Prazo", sellerDeadlineLabels[deadline]); add("Documentação ou certificado", current.documentationAvailable === "yes" ? "Disponível" : "Não disponível"); add("Condição do material", conditionLabels[negotiation.materialCondition] || "Não informada"); add("Situação", interestStatusLabels[negotiation.status] || "Em negociação");
+        summary.append(summaryTitle, grid); container.append(summary);
+      }
+
       function createNegotiationCard(negotiation, sold = false) {
         const item = document.createElement("li");
         item.className = "material-card";
@@ -800,8 +861,6 @@
         information.textContent = `${perspective} · Quantidade: ${negotiation.quantity} ${unitName || ""} · Prazo: ${deadlineLabels[negotiation.deadline]}`;
         item.append(header, information);
         if (negotiation.partNumber) { const partNumber = document.createElement("p"); partNumber.textContent = `Part number: ${negotiation.partNumber}`; item.append(partNumber); }
-        if (!sold && negotiation.status === "agreement_confirmed") { const agreement = document.createElement("p"); agreement.className = "message success"; agreement.textContent = "Acordo confirmado pela Global Shared Stock. A negociação está em formalização."; item.append(agreement); }
-        if (negotiation.perspective === "buyer") appendSharedResponse(item, negotiation, unitName);
         if (negotiation.perspective === "seller" && negotiation.advertised) {
           const reference = document.createElement("section");
           reference.className = "reference-data";
@@ -822,6 +881,7 @@
           if (Number(negotiation.quantity) > Number(negotiation.advertised.quantity)) { const warning = document.createElement("p"); warning.className = "stock-warning"; warning.textContent = "A quantidade solicitada é maior que o estoque atualmente anunciado."; reference.append(warning); }
           item.append(reference);
         }
+        appendCompanyNegotiationHistory(item, negotiation, unitName);
         if (!sold && negotiation.perspective === "seller" && negotiation.status === "seller_adjustment_requested" && negotiation.buyerDecision) {
           const proposal = document.createElement("section"); proposal.className = "reference-data shared-response";
           const proposalTitle = document.createElement("h4"); proposalTitle.textContent = "Ajuste solicitado — identidade protegida";

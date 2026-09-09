@@ -36,7 +36,8 @@ export async function onRequestGet(context) {
       const safeForBuyer = (item) => {
         const visible = safe(item);
         const { sellerResponseHistory, sellerCorrectionReason, sellerAdjustmentResponse, buyerDecisionHistory, ...withoutInternalReview } = visible;
-        if (["response_shared", "buyer_accepted", "buyer_adjustment_requested", "buyer_adjustment_correction_requested", "seller_adjustment_requested", "seller_adjustment_response_received", "agreement_confirmed", "closed_no_sale"].includes(item.status)) return withoutInternalReview;
+        if (item.status === "agreement_confirmed") return { ...withoutInternalReview, sellerAdjustmentResponse };
+        if (["response_shared", "buyer_accepted", "buyer_adjustment_requested", "buyer_adjustment_correction_requested", "seller_adjustment_requested", "seller_adjustment_response_received", "closed_no_sale"].includes(item.status)) return withoutInternalReview;
         const { sellerResponse, ...protectedItem } = withoutInternalReview;
         return protectedItem;
       };
@@ -61,7 +62,7 @@ export async function onRequestGet(context) {
           unitPriceCents: advertisement.unitPriceCents,
           hasCertificate: Boolean(advertisement.hasCertificate),
         } : undefined;
-        return { ...(perspective === "buyer" ? safeForBuyer(item) : safeForSeller(item)), perspective, ...(advertised ? { advertised } : {}) };
+        return { ...(perspective === "buyer" ? safeForBuyer(item) : safeForSeller(item)), perspective, materialCondition: advertisement?.condition || "", ...(advertised ? { advertised } : {}) };
       };
       const ownInterests = interests.filter((item) => item.buyerCompanyId === session.companyId).map(safeForBuyer);
       const negotiations = interests
