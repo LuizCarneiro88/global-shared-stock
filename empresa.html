@@ -1355,8 +1355,6 @@
       resetEditor();
       loadMaterials();
       loadInterests();
-      document.addEventListener("visibilitychange", () => { if (!document.hidden) loadInterests(); });
-      window.setInterval(() => { if (!document.hidden && !document.querySelector(".negotiation-group[open]")) loadInterests(); }, 15000);
     </script>
   </body>
 </html>

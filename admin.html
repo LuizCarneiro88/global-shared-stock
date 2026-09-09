@@ -1424,12 +1424,6 @@
       }
 
       refreshInterests.addEventListener("click", loadInterests);
-      document.addEventListener("visibilitychange", () => {
-        if (!document.hidden) loadInterests();
-      });
-      window.setInterval(() => {
-        if (!document.hidden) loadInterests();
-      }, 15000);
 
       loadCompanies();
       loadMaterials();
