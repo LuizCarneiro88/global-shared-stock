@@ -1098,6 +1098,8 @@
           addDetail(orderDetails, "Valor total da venda", money.format(interest.commissionPurchaseOrder.totalCents / 100));
           addDetail(orderDetails, "Comissão esperada (10%)", money.format(interest.commissionPurchaseOrder.commissionCents / 100));
           addDetail(orderDetails, "Líquido da vendedora", money.format(interest.commissionPurchaseOrder.sellerNetCents / 100));
+          addDetail(orderDetails, "Aceite da comissão", interest.commissionPurchaseOrder.commissionAcceptedAt ? `Confirmado em ${new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short" }).format(new Date(interest.commissionPurchaseOrder.commissionAcceptedAt))}` : "Não registrado");
+          addDetail(orderDetails, "Termos e Condições", interest.commissionPurchaseOrder.termsAcceptedAt ? `${interest.commissionPurchaseOrder.termsVersion} aceito em ${new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short" }).format(new Date(interest.commissionPurchaseOrder.termsAcceptedAt))}` : "Não registrado");
           const orderLink = document.createElement("a"); orderLink.className = "document-button"; orderLink.href = `/api/interesses/${interest.id}/ordem-compra`; orderLink.target = "_blank"; orderLink.rel = "noopener"; orderLink.textContent = `Visualizar Ordem de Compra — ${interest.commissionPurchaseOrder.name}`;
           order.append(orderTitle, orderDetails, orderLink); article.append(order);
         }

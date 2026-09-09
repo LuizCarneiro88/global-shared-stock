@@ -90,6 +90,17 @@
       .material-card .chat-text { margin: 0; color: var(--text); white-space: pre-line; }
       .chat-time { display: block; margin-top: 7px; color: var(--muted); font-size: .68rem; }
       .current-terms { margin-top: 18px; padding: 14px; border: 1px solid #57735c; border-radius: 11px; background: rgba(87, 115, 92, .08); }
+      .terms-link { color: var(--silver); font-weight: 750; text-decoration: underline; text-underline-offset: 3px; }
+      .terms-modal { position: fixed; inset: 0; z-index: 20; display: grid; place-items: center; padding: 12px; background: rgba(0,0,0,.82); }
+      .terms-dialog { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; width: min(100%, 860px); height: min(92vh, 820px); overflow: hidden; border: 1px solid var(--line); border-radius: 16px; background: var(--surface); box-shadow: 0 24px 70px rgba(0,0,0,.5); }
+      .terms-dialog-header, .terms-dialog-footer { padding: 14px; }
+      .terms-dialog-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; border-bottom: 1px solid var(--line); }
+      .terms-frame { width: 100%; height: 100%; border: 0; background: var(--background); }
+      .terms-dialog-footer { border-top: 1px solid var(--line); color: var(--muted); font-size: .8rem; }
+      .terms-dialog-header h2 { margin: 0; font-size: 1rem; }
+      .terms-dialog-header button { min-height: 40px; padding: 7px 11px; }
+      .terms-frame { width: 100%; height: 100%; border: 0; background: var(--background); }
+      .terms-dialog-footer { border-top: 1px solid var(--line); color: var(--muted); font-size: .78rem; text-align: center; }
       .stock-warning { margin: 10px 0 0; color: var(--danger); font-size: .8rem; font-weight: 700; }
       .adjustment-options { display: grid; gap: 10px; }
       .adjustment-option { display: flex; align-items: center; gap: 9px; margin: 0; font-weight: 600; }
@@ -214,6 +225,14 @@
       <form class="logout" action="/api/logout" method="post"><button class="secondary" type="submit">Sair</button></form>
     </main>
 
+    <div id="terms-modal" class="terms-modal" role="dialog" aria-modal="true" aria-labelledby="terms-modal-title" hidden>
+      <section class="terms-dialog">
+        <header class="terms-dialog-header"><h2 id="terms-modal-title">Minuta dos Termos e Condições</h2><button id="close-terms" class="secondary" type="button">Fechar</button></header>
+        <iframe id="terms-frame" class="terms-frame" title="Minuta dos Termos e Condições" src="/termos-condicoes.html"></iframe>
+        <footer id="terms-reading-status" class="terms-dialog-footer">Role o documento até o final para liberar o aceite.</footer>
+      </section>
+    </div>
+
     <script type="module">
       import { categories, subcategories, materialTypes, OTHER_CLASSIFICATION } from "/classificacoes.js";
 
@@ -256,6 +275,12 @@
       const photoList = document.querySelector("#photo-list");
       const certificateList = document.querySelector("#certificate-list");
       const negotiationsNotification = document.querySelector("#negotiations-notification");
+      const termsModal = document.querySelector("#terms-modal");
+      const termsFrame = document.querySelector("#terms-frame");
+      const closeTerms = document.querySelector("#close-terms");
+      const termsReadingStatus = document.querySelector("#terms-reading-status");
+      const termsVersion = "MINUTA-0.1";
+      let activeTermsReading = null;
       let loadedNegotiations = [];
       let interestsAreLoading = false;
       const workspaceTabs = [...document.querySelectorAll(".workspace-tab")];
@@ -277,6 +302,56 @@
         const selected = workspaceTabs.find((tab) => tab.getAttribute("aria-selected") === "true" && !tab.hidden);
         openWorkspaceTab(selected || workspaceTabs.find((tab) => !tab.hidden));
       }
+
+      async function registerTermsReading(interestId, action) {
+        const response = await fetch(`/api/interesses/${interestId}/termos`, { method: "POST", headers: { "Content-Type": "application/json", Accept: "application/json" }, body: JSON.stringify({ action }) });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.message || "Não foi possível registrar a leitura da minuta.");
+        return result.termsReading;
+      }
+
+      function watchTermsScroll() {
+        if (!activeTermsReading) return;
+        try {
+          const frameWindow = termsFrame.contentWindow;
+          const frameDocument = termsFrame.contentDocument;
+          const scrolling = frameDocument.scrollingElement || frameDocument.documentElement;
+          frameWindow.onscroll = async () => {
+            if (!activeTermsReading || activeTermsReading.saving || scrolling.scrollTop + scrolling.clientHeight < scrolling.scrollHeight - 24) return;
+            activeTermsReading.saving = true;
+            try {
+              const reading = await registerTermsReading(activeTermsReading.interestId, "read_to_end");
+              activeTermsReading.checkbox.disabled = false;
+              activeTermsReading.negotiation.termsReading = reading;
+              termsReadingStatus.textContent = "Leitura concluída. O aceite dos Termos e Condições foi liberado.";
+            } catch (error) {
+              termsReadingStatus.textContent = error.message;
+            } finally { if (activeTermsReading) activeTermsReading.saving = false; }
+          };
+          frameWindow.onscroll();
+        } catch {
+          termsReadingStatus.textContent = "Não foi possível acompanhar a leitura. Feche a janela e tente novamente.";
+        }
+      }
+
+      async function openTermsForAcceptance(negotiation, checkbox) {
+        checkbox.checked = false; checkbox.disabled = true;
+        activeTermsReading = { interestId: negotiation.id, negotiation, checkbox, saving: false };
+        termsReadingStatus.textContent = "Role o documento até o final para liberar o aceite.";
+        termsModal.hidden = false; document.body.style.overflow = "hidden"; closeTerms.focus();
+        try {
+          const reading = await registerTermsReading(negotiation.id, "opened");
+          negotiation.termsReading = reading;
+          if (reading.readToEndAt) { checkbox.disabled = false; termsReadingStatus.textContent = "Leitura desta versão já registrada. O aceite está liberado."; }
+          watchTermsScroll();
+        } catch (error) { termsReadingStatus.textContent = error.message; }
+      }
+
+      function closeTermsModal() { termsModal.hidden = true; document.body.style.overflow = ""; activeTermsReading = null; }
+      closeTerms.addEventListener("click", closeTermsModal);
+      termsModal.addEventListener("click", (event) => { if (event.target === termsModal) closeTermsModal(); });
+      document.addEventListener("keydown", (event) => { if (event.key === "Escape" && !termsModal.hidden) closeTermsModal(); });
+      termsFrame.addEventListener("load", watchTermsScroll);
       const photoStatus = document.querySelector("#photo-status");
       const certificateStatus = document.querySelector("#certificate-status");
       const drafts = [];
@@ -957,11 +1032,14 @@
           const addValue = (label, value) => { const field = document.createElement("div"); field.className = "reference-item"; const name = document.createElement("span"); name.textContent = label; const content = document.createElement("strong"); content.textContent = value; field.append(name, content); values.append(field); };
           addValue("Valor total da venda", money.format(totalCents / 100)); addValue("Comissão de 10%", money.format(commissionCents / 100)); addValue("Líquido da vendedora", money.format((totalCents - commissionCents) / 100));
           const termLabel = document.createElement("label"); termLabel.className = "adjustment-option field-wide"; const term = document.createElement("input"); term.type = "checkbox"; term.required = true; termLabel.append(term, document.createTextNode(` Aceito a comissão de 10% no valor de ${money.format(commissionCents / 100)}.`));
+          const termsLink = document.createElement("a"); termsLink.className = "terms-link field-wide"; termsLink.href = "/termos-condicoes.html"; termsLink.textContent = "Ler a Minuta dos Termos e Condições";
+          const termsLabel = document.createElement("label"); termsLabel.className = "adjustment-option field-wide"; const termsAcceptance = document.createElement("input"); termsAcceptance.type = "checkbox"; termsAcceptance.required = true; termsAcceptance.disabled = true; termsLabel.append(termsAcceptance, document.createTextNode(` Li e aceito os Termos e Condições — ${termsVersion}.`));
+          termsLink.addEventListener("click", (event) => { event.preventDefault(); openTermsForAcceptance(negotiation, termsAcceptance); });
           const fileField = document.createElement("div"); fileField.className = "field-wide"; const fileLabel = document.createElement("label"); fileLabel.textContent = "Ordem de Compra da comissão *"; const file = document.createElement("input"); file.type = "file"; file.accept = "application/pdf,image/jpeg,image/png,image/webp"; file.required = true; fileField.append(fileLabel, file);
           const submit = document.createElement("button"); submit.type = "submit"; submit.textContent = negotiation.status === "commission_po_correction_requested" ? "Enviar Ordem de Compra corrigida" : "Enviar Ordem de Compra";
           const feedback = document.createElement("p"); feedback.className = "message field-wide"; feedback.hidden = true;
-          formalization.append(values, termLabel, fileField, submit, feedback);
-          formalization.addEventListener("submit", async (event) => { event.preventDefault(); if (!formalization.reportValidity()) return; submit.disabled = true; feedback.hidden = true; const data = new FormData(); data.set("termAccepted", "yes"); data.set("file", file.files[0]); try { const response = await fetch(`/api/interesses/${negotiation.id}/ordem-compra`, { method: "POST", body: data }); const result = await response.json(); if (!response.ok) throw new Error(result.message || "Não foi possível enviar a Ordem de Compra."); feedback.textContent = result.message; feedback.className = "message success field-wide"; feedback.hidden = false; await loadInterests(); } catch (error) { feedback.textContent = error.message; feedback.className = "message error field-wide"; feedback.hidden = false; submit.disabled = false; } });
+          formalization.append(values, termLabel, termsLink, termsLabel, fileField, submit, feedback);
+          formalization.addEventListener("submit", async (event) => { event.preventDefault(); if (!termsAcceptance.checked) { feedback.textContent = "Abra a minuta, role até o final e aceite os Termos e Condições."; feedback.className = "message error field-wide"; feedback.hidden = false; return; } if (!formalization.reportValidity()) return; submit.disabled = true; feedback.hidden = true; const data = new FormData(); data.set("termAccepted", "yes"); data.set("termsAccepted", "yes"); data.set("termsReadToEnd", "yes"); data.set("termsVersion", termsVersion); data.set("file", file.files[0]); try { const response = await fetch(`/api/interesses/${negotiation.id}/ordem-compra`, { method: "POST", body: data }); const result = await response.json(); if (!response.ok) throw new Error(result.message || "Não foi possível enviar a Ordem de Compra."); feedback.textContent = result.message; feedback.className = "message success field-wide"; feedback.hidden = false; await loadInterests(); } catch (error) { feedback.textContent = error.message; feedback.className = "message error field-wide"; feedback.hidden = false; submit.disabled = false; } });
           item.append(formalization);
         }
         if (!sold && negotiation.perspective === "seller" && negotiation.status === "commission_po_submitted") { const waiting = document.createElement("p"); waiting.className = "message success"; waiting.textContent = "Ordem de Compra enviada. Aguarde a validação da Global Shared Stock."; item.append(waiting); }

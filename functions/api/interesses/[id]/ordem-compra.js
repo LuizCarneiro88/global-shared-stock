@@ -2,6 +2,8 @@ import { getSession } from "../../../_auth.js";
 import { MAX_CERTIFICATE_SIZE, safeFilename, validFileType } from "../../../_material-files.js";
 import { INTEREST_ID_PATTERN, effectiveAgreementTerms, purchaseOrderFileResponse, purchaseOrderObjectKey } from "../../../_commission.js";
 
+const TERMS_VERSION = "MINUTA-0.1";
+
 function error(message, status = 400) {
   return Response.json({ message }, { status, headers: { "Cache-Control": "no-store" } });
 }
@@ -19,6 +21,7 @@ export async function onRequestPost(context) {
   let formData;
   try { formData = await context.request.formData(); } catch { return error("Não foi possível ler o documento."); }
   if (formData.get("termAccepted") !== "yes") return error("Aceite o termo de comissão para continuar.");
+  if (formData.get("termsAccepted") !== "yes" || formData.get("termsReadToEnd") !== "yes" || formData.get("termsVersion") !== TERMS_VERSION) return error("Abra a minuta, role até o final e aceite os Termos e Condições para continuar.");
   const file = formData.get("file");
   if (!(file instanceof File) || file.size <= 0) return error("Anexe a Ordem de Compra.");
   if (file.size > MAX_CERTIFICATE_SIZE) return error("A Ordem de Compra pode ter no máximo 10 MB.");
@@ -33,7 +36,8 @@ export async function onRequestPost(context) {
     const history = interest.commissionPurchaseOrder && interest.status === "commission_po_correction_requested"
       ? [...(interest.commissionPurchaseOrderHistory || []), interest.commissionPurchaseOrder]
       : interest.commissionPurchaseOrderHistory || [];
-    const commissionPurchaseOrder = { ...metadata, ...terms, termAcceptedAt: new Date().toISOString(), status: "submitted" };
+    const acceptedAt = new Date().toISOString();
+    const commissionPurchaseOrder = { ...metadata, ...terms, commissionAcceptedAt: acceptedAt, termsAcceptedAt: acceptedAt, termsOpenedAt: interest.termsReading?.openedAt || acceptedAt, termsReadToEndAt: interest.termsReading?.readToEndAt || acceptedAt, termsVersion: TERMS_VERSION, status: "submitted" };
     const updated = { ...interest, status: "commission_po_submitted", commissionPurchaseOrder, commissionPurchaseOrderHistory: history, commissionCorrectionReason: "" };
     await context.env.CADASTROS.put(key, JSON.stringify(updated));
     if (interest.commissionPurchaseOrder?.id) await context.env.MATERIAL_FILES.delete(purchaseOrderObjectKey(id, interest.commissionPurchaseOrder.id));
