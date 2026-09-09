@@ -1,4 +1,5 @@
 import { getSession } from "../../_auth.js";
+import { onRequestPost as submitPurchaseOrder } from "./[id]/ordem-compra.js";
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const DECISIONS = new Set(["in_intermediation", "rejected"]);
@@ -261,6 +262,10 @@ export async function onRequestPatch(context) {
   return Response.json({ success: true, interest: updated }, { headers: { "Cache-Control": "no-store" } });
 }
 
+export async function onRequestPost(context) {
+  return submitPurchaseOrder(context);
+}
+
 export function onRequest() {
-  return new Response("Método não permitido.", { status: 405, headers: { Allow: "PATCH" } });
+  return new Response("Método não permitido.", { status: 405, headers: { Allow: "PATCH, POST" } });
 }
