@@ -38,12 +38,17 @@ export async function onRequestPatch(context) {
   if (await emailBelongsToAnotherCompany(context.env, newEmail, id)) return error("Este e-mail já está cadastrado para outra empresa.", 409);
 
   const newEmailKey = `conta-email:${await hashEmail(newEmail)}`;
+  const newUserEmailKey = `usuario-email:${await hashEmail(newEmail)}`;
   const mappedCompanyId = await context.env.CADASTROS.get(newEmailKey);
   if (mappedCompanyId && mappedCompanyId !== id) return error("Este e-mail já está vinculado a outro acesso.", 409);
+  const mappedUserId = await context.env.CADASTROS.get(newUserEmailKey);
+  if (mappedUserId) return error("Este e-mail já está vinculado a outro usuário.", 409);
 
   try {
     const changedAt = new Date().toISOString();
     const account = await context.env.CADASTROS.get(`conta:${id}`, "json");
+    const primaryUserId = oldEmail ? await context.env.CADASTROS.get(`usuario-email:${await hashEmail(oldEmail)}`) : null;
+    const primaryUser = primaryUserId ? await context.env.CADASTROS.get(`usuario:${primaryUserId}`, "json") : null;
     const updatedCompany = {
       ...company,
       primaryEmail: newEmail,
@@ -52,6 +57,11 @@ export async function onRequestPatch(context) {
     await context.env.CADASTROS.put(newEmailKey, id);
     await context.env.CADASTROS.put(key, JSON.stringify(updatedCompany));
     if (account) await context.env.CADASTROS.put(`conta:${id}`, JSON.stringify({ ...account, email: newEmail, updatedAt: changedAt }));
+    if (primaryUser?.companyId === id && primaryUser.role === "primary") {
+      await context.env.CADASTROS.put(`usuario:${primaryUserId}`, JSON.stringify({ ...primaryUser, email: newEmail, updatedAt: changedAt }));
+      await context.env.CADASTROS.put(newUserEmailKey, primaryUserId);
+      await context.env.CADASTROS.delete(`usuario-email:${await hashEmail(oldEmail)}`);
+    }
     if (oldEmail) await context.env.CADASTROS.delete(`conta-email:${await hashEmail(oldEmail)}`);
     return Response.json({ success: true, company: updatedCompany, message: "E-mail alterado com sucesso. O próximo acesso deverá usar o novo endereço." }, { headers: { "Cache-Control": "no-store" } });
   } catch {

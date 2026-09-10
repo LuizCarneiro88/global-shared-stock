@@ -126,6 +126,7 @@
         <button id="interests-tab" class="workspace-tab" type="button" role="tab" aria-selected="false" aria-controls="interests-panel">Interesses</button>
         <button id="negotiations-tab" class="workspace-tab" type="button" role="tab" aria-selected="false" aria-controls="negotiations-panel">Negociações <span id="negotiations-notification" class="tab-notification" hidden></span></button>
         <button id="completed-tab" class="workspace-tab" type="button" role="tab" aria-selected="false" aria-controls="completed-panel">Concluídos</button>
+        <button id="users-tab" class="workspace-tab" type="button" role="tab" aria-selected="false" aria-controls="users-panel">Usuários e acessos</button>
       </nav>
 
       <section id="materials-panel" class="workspace-tab-panel" role="tabpanel" aria-labelledby="materials-tab">
@@ -222,6 +223,25 @@
       </section>
       </section>
 
+      <section id="users-panel" class="workspace-tab-panel" role="tabpanel" aria-labelledby="users-tab" hidden>
+        <section class="panel" aria-labelledby="users-title">
+          <h2 id="users-title">Usuários e acessos</h2>
+          <p class="introduction">Cada pessoa utiliza seu próprio e-mail e sua própria senha.</p>
+          <ul id="company-user-list" class="material-list"><li class="material-card">Carregando usuários...</li></ul>
+        </section>
+        <section id="new-user-panel" class="panel" aria-labelledby="new-user-title" hidden>
+          <h2 id="new-user-title">Adicionar usuário</h2>
+          <form id="new-user-form">
+            <div class="fields">
+              <div><label for="new-user-name">Nome *</label><input id="new-user-name" maxlength="150" required /></div>
+              <div><label for="new-user-email">E-mail *</label><input id="new-user-email" type="email" maxlength="254" required /></div>
+            </div>
+            <button type="submit">Criar solicitação de acesso</button>
+            <p id="new-user-feedback" class="message" role="status" hidden></p>
+          </form>
+        </section>
+      </section>
+
       <form class="logout" action="/api/logout" method="post"><button class="secondary" type="submit">Sair</button></form>
     </main>
 
@@ -280,6 +300,10 @@
       const closeTerms = document.querySelector("#close-terms");
       const termsReadingStatus = document.querySelector("#terms-reading-status");
       const termsVersion = "MINUTA-0.1";
+      const companyUserList = document.querySelector("#company-user-list");
+      const newUserPanel = document.querySelector("#new-user-panel");
+      const newUserForm = document.querySelector("#new-user-form");
+      const newUserFeedback = document.querySelector("#new-user-feedback");
       let activeTermsReading = null;
       let loadedNegotiations = [];
       let interestsAreLoading = false;
@@ -302,6 +326,68 @@
         const selected = workspaceTabs.find((tab) => tab.getAttribute("aria-selected") === "true" && !tab.hidden);
         openWorkspaceTab(selected || workspaceTabs.find((tab) => !tab.hidden));
       }
+
+      function userSituation(user) {
+        if (user.rejectionReason) return `Rejeitado: ${user.rejectionReason}`;
+        if (!user.emailConfirmedAt) return "Aguardando confirmação do e-mail";
+        if (user.role === "additional" && !user.primaryApprovedAt) return "Aguardando aprovação do usuário principal";
+        if (!user.adminApprovedAt) return "Aguardando aprovação do Administrador";
+        return user.active ? "Acesso liberado" : "Acesso bloqueado";
+      }
+
+      function createCompanyUserCard(user) {
+        const item = document.createElement("li");
+        item.className = "material-card";
+        const header = document.createElement("div");
+        header.className = "material-header";
+        const title = document.createElement("h3");
+        title.textContent = user.name;
+        const status = document.createElement("span");
+        status.className = "status-pill";
+        status.textContent = userSituation(user);
+        header.append(title, status);
+        const information = document.createElement("p");
+        information.textContent = `${user.email} · ${user.role === "primary" ? "Usuário principal" : "Usuário adicional"}`;
+        item.append(header, information);
+        return item;
+      }
+
+      async function loadCompanyUsers() {
+        try {
+          const response = await fetch("/api/empresa/usuarios", { cache: "no-store", headers: { Accept: "application/json" } });
+          const result = await response.json();
+          if (!response.ok) throw new Error(result.message || "Não foi possível carregar os usuários.");
+          const empty = Object.assign(document.createElement("li"), { className: "material-card", textContent: "Nenhum usuário individual registrado. O acesso atual continua preservado." });
+          companyUserList.replaceChildren(...(result.users.length ? result.users.map(createCompanyUserCard) : [empty]));
+          newUserPanel.hidden = !result.canManage;
+        } catch (error) {
+          companyUserList.replaceChildren(Object.assign(document.createElement("li"), { className: "material-card", textContent: error.message }));
+        }
+      }
+
+      newUserForm.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        if (!newUserForm.reportValidity()) return;
+        const button = newUserForm.querySelector("button[type='submit']");
+        button.disabled = true;
+        newUserFeedback.hidden = true;
+        try {
+          const response = await fetch("/api/empresa/usuarios", { method: "POST", headers: { "Content-Type": "application/json", Accept: "application/json" }, body: JSON.stringify({ name: document.querySelector("#new-user-name").value, email: document.querySelector("#new-user-email").value }) });
+          const result = await response.json();
+          if (!response.ok) throw new Error(result.message || "Não foi possível criar a solicitação.");
+          newUserFeedback.textContent = `${result.message} Link provisório para teste: ${result.confirmationLink}`;
+          newUserFeedback.className = "message success";
+          newUserFeedback.hidden = false;
+          newUserForm.reset();
+          await loadCompanyUsers();
+        } catch (error) {
+          newUserFeedback.textContent = error.message;
+          newUserFeedback.className = "message error";
+          newUserFeedback.hidden = false;
+        } finally {
+          button.disabled = false;
+        }
+      });
 
       async function registerTermsReading(interestId, action) {
         const response = await fetch(`/api/interesses/${interestId}`, { method: "PATCH", headers: { "Content-Type": "application/json", Accept: "application/json" }, body: JSON.stringify({ action: action === "opened" ? "terms_opened" : "terms_read_to_end" }) });
@@ -1355,6 +1441,7 @@
       resetEditor();
       loadMaterials();
       loadInterests();
+      loadCompanyUsers();
     </script>
   </body>
 </html>

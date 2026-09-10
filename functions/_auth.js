@@ -76,6 +76,13 @@ export async function hashPassword(password, salt = crypto.getRandomValues(new U
 
 export async function sellerCredentialsAreValid(email, password, env) {
   if (!env.CADASTROS || typeof email !== "string" || typeof password !== "string") return null;
+  const userId = await env.CADASTROS.get(`usuario-email:${await hashEmail(email)}`);
+  if (userId) {
+    const user = await env.CADASTROS.get(`usuario:${userId}`, "json");
+    if (!user?.passwordHash || !user?.salt) return null;
+    const candidate = await hashPassword(password, base64UrlToBytes(user.salt));
+    return equalBytes(encoder.encode(candidate.hash), encoder.encode(user.passwordHash)) ? user : null;
+  }
   const companyId = await env.CADASTROS.get(`conta-email:${await hashEmail(email)}`);
   if (!companyId) return null;
   const account = await env.CADASTROS.get(`conta:${companyId}`, "json");

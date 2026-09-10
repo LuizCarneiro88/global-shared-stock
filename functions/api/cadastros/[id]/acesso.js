@@ -1,3 +1,5 @@
+import { hashEmail } from "../../../_auth.js";
+
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const LINK_DURATION_SECONDS = 24 * 60 * 60;
 
@@ -24,6 +26,30 @@ export async function onRequestPost(context) {
   if (!company) return error("Solicitação não encontrada.", 404);
   if (company.status !== "approved") return error("A empresa precisa estar aprovada para receber acesso.", 409);
 
+  let userId = await context.env.CADASTROS.get(`usuario-email:${await hashEmail(company.primaryEmail)}`);
+  if (!userId) {
+    userId = crypto.randomUUID();
+    const legacyAccount = await context.env.CADASTROS.get(`conta:${company.id}`, "json");
+    const now = new Date().toISOString();
+    await context.env.CADASTROS.put(`usuario:${userId}`, JSON.stringify({
+      userId,
+      companyId: company.id,
+      companyName: company.companyName,
+      name: company.primaryContact,
+      email: company.primaryEmail,
+      role: "primary",
+      primaryApprovedAt: now,
+      adminApprovedAt: now,
+      emailConfirmedAt: legacyAccount?.active ? legacyAccount.createdAt || now : null,
+      passwordHash: legacyAccount?.passwordHash,
+      salt: legacyAccount?.salt,
+      iterations: legacyAccount?.iterations,
+      active: Boolean(legacyAccount?.active),
+      createdAt: legacyAccount?.createdAt || now,
+    }));
+    await context.env.CADASTROS.put(`usuario-email:${await hashEmail(company.primaryEmail)}`, userId);
+  }
+
   const previousHash = await context.env.CADASTROS.get(`ativacao-empresa:${id}`);
   if (previousHash) await context.env.CADASTROS.delete(`ativacao:${previousHash}`);
 
@@ -32,7 +58,7 @@ export async function onRequestPost(context) {
   const expiresAt = Date.now() + LINK_DURATION_SECONDS * 1000;
   await context.env.CADASTROS.put(
     `ativacao:${hash}`,
-    JSON.stringify({ companyId: id, email: company.primaryEmail, expiresAt }),
+    JSON.stringify({ companyId: id, userId, email: company.primaryEmail, expiresAt }),
     { expirationTtl: LINK_DURATION_SECONDS },
   );
   await context.env.CADASTROS.put(`ativacao-empresa:${id}`, hash, { expirationTtl: LINK_DURATION_SECONDS });

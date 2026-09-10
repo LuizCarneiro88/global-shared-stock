@@ -27,7 +27,16 @@ export async function onRequestPost(context) {
   if (!company || company.status !== "approved") return error("A empresa não está aprovada.", 403);
 
   const password = await hashPassword(input.password);
-  const account = {
+  const existingUser = activation.userId ? await context.env.CADASTROS.get(`usuario:${activation.userId}`, "json") : null;
+  const account = existingUser ? {
+    ...existingUser,
+    emailConfirmedAt: new Date().toISOString(),
+    passwordHash: password.hash,
+    salt: password.salt,
+    iterations: password.iterations,
+    active: Boolean(existingUser.adminApprovedAt && (existingUser.role === "primary" || existingUser.primaryApprovedAt)),
+    updatedAt: new Date().toISOString(),
+  } : {
     companyId: company.id,
     companyName: company.companyName,
     email: company.primaryEmail,
@@ -37,8 +46,13 @@ export async function onRequestPost(context) {
     active: true,
     createdAt: new Date().toISOString(),
   };
-  await context.env.CADASTROS.put(`conta:${company.id}`, JSON.stringify(account));
-  await context.env.CADASTROS.put(`conta-email:${await hashEmail(company.primaryEmail)}`, company.id);
+  if (existingUser) {
+    await context.env.CADASTROS.put(`usuario:${existingUser.userId}`, JSON.stringify(account));
+    await context.env.CADASTROS.put(`usuario-email:${await hashEmail(existingUser.email)}`, existingUser.userId);
+  } else {
+    await context.env.CADASTROS.put(`conta:${company.id}`, JSON.stringify(account));
+    await context.env.CADASTROS.put(`conta-email:${await hashEmail(company.primaryEmail)}`, company.id);
+  }
   await context.env.CADASTROS.delete(`ativacao:${hash}`);
   await context.env.CADASTROS.delete(`ativacao-empresa:${company.id}`);
   return Response.json({ success: true }, { headers: { "Cache-Control": "no-store" } });

@@ -23,11 +23,14 @@ export async function onRequestPost(context) {
   const hash = await tokenHash(input.token);
   const reset = await context.env.CADASTROS.get(`redefinicao:${hash}`, "json");
   if (!reset || reset.expiresAt <= Date.now()) return error("Este link expirou ou já foi utilizado.", 410);
-  const account = await context.env.CADASTROS.get(`conta:${reset.companyId}`, "json");
+  const account = reset.userId
+    ? await context.env.CADASTROS.get(`usuario:${reset.userId}`, "json")
+    : await context.env.CADASTROS.get(`conta:${reset.companyId}`, "json");
   if (!account?.active) return error("A conta da empresa não está ativa.", 403);
 
   const password = await hashPassword(input.password);
-  await context.env.CADASTROS.put(`conta:${reset.companyId}`, JSON.stringify({
+  const accountKey = reset.userId ? `usuario:${reset.userId}` : `conta:${reset.companyId}`;
+  await context.env.CADASTROS.put(accountKey, JSON.stringify({
     ...account,
     passwordHash: password.hash,
     salt: password.salt,

@@ -187,6 +187,116 @@
         border-color: #d99393;
       }
 
+      .choice-field,
+      .terms-card {
+        padding: 16px;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        background: rgba(23, 27, 32, 0.82);
+      }
+
+      .choice-label,
+      .terms-acceptance {
+        display: flex;
+        align-items: flex-start;
+        gap: 10px;
+        margin: 0;
+        line-height: 1.45;
+      }
+
+      .choice-label input,
+      .terms-acceptance input {
+        width: 20px;
+        min-height: 20px;
+        margin: 1px 0 0;
+        flex: 0 0 auto;
+      }
+
+      .terms-area {
+        display: grid;
+        gap: 14px;
+      }
+
+      .terms-area[hidden],
+      .terms-card[hidden] {
+        display: none;
+      }
+
+      .terms-card h3 {
+        margin: 0 0 8px;
+        font-size: 1rem;
+      }
+
+      .terms-open {
+        min-height: 44px;
+        margin: 6px 0 14px;
+        background: transparent;
+        color: var(--text);
+      }
+
+      .terms-status {
+        margin: 8px 0 0 30px;
+        color: var(--muted);
+        font-size: 0.78rem;
+      }
+
+      dialog {
+        width: min(100% - 24px, 720px);
+        max-height: calc(100vh - 32px);
+        padding: 0;
+        border: 1px solid var(--line);
+        border-radius: 18px;
+        background: var(--surface);
+        color: var(--text);
+      }
+
+      dialog::backdrop {
+        background: rgba(0, 0, 0, 0.82);
+      }
+
+      .terms-dialog-header,
+      .terms-dialog-footer {
+        padding: 16px;
+      }
+
+      .terms-dialog-header {
+        border-bottom: 1px solid var(--line);
+      }
+
+      .terms-dialog-header h2 {
+        margin: 0;
+        font-size: 1.25rem;
+      }
+
+      .terms-scroll {
+        height: min(58vh, 520px);
+        overflow-y: auto;
+        padding: 20px;
+        line-height: 1.6;
+      }
+
+      .terms-scroll h3 {
+        margin: 22px 0 6px;
+      }
+
+      .terms-scroll h3:first-child {
+        margin-top: 0;
+      }
+
+      .draft-mark {
+        padding: 10px;
+        border: 1px dashed #777e87;
+        border-radius: 8px;
+        color: var(--silver);
+        font-weight: 800;
+        letter-spacing: 0.1em;
+        text-align: center;
+      }
+
+      .terms-dialog-footer {
+        border-top: 1px solid var(--line);
+      }
+
       .help {
         margin: 7px 0 0;
         color: var(--muted);
@@ -477,12 +587,12 @@
           <legend>4. Perfil comercial</legend>
           <div class="fields two-columns">
             <div class="field">
-              <label class="required" for="interest">Interesse</label>
+              <label class="required" for="interest">Perfil comercial</label>
               <select id="interest" name="interest" required>
                 <option value="">Selecione</option>
-                <option value="buy">Compra</option>
-                <option value="sell">Venda</option>
-                <option value="both">Compra e venda</option>
+                <option value="buy">Compradora</option>
+                <option value="sell">Vendedora</option>
+                <option value="both">Compradora e vendedora</option>
               </select>
             </div>
 
@@ -497,6 +607,48 @@
                 <option value="1m-to-5m">Entre R$ 1 milhão e R$ 5 milhões</option>
                 <option value="over-5m">Acima de R$ 5 milhões</option>
               </select>
+            </div>
+
+            <div class="field choice-field">
+              <label class="choice-label" for="primary-user-requested">
+                <input id="primary-user-requested" name="primary-user-requested" type="checkbox" value="yes" />
+                <span>Solicito ser o usuário principal desta empresa.</span>
+              </label>
+              <p class="help">
+                A função será confirmada pelo Administrador após a análise do cadastro.
+              </p>
+            </div>
+          </div>
+        </fieldset>
+
+        <fieldset id="general-terms" hidden>
+          <legend>5. Termos Gerais</legend>
+          <p class="help">
+            Os documentos abaixo são minutas. Abra cada Termo exigido pelo perfil, leia até o final e marque o aceite.
+          </p>
+          <div class="terms-area">
+            <div id="seller-terms-card" class="terms-card field" hidden>
+              <input id="seller-general-terms-read-to-end" name="seller-general-terms-read-to-end" type="hidden" value="no" />
+              <h3>Termo Geral do Vendedor</h3>
+              <p class="help">Inclui as regras gerais, a comissão de 10% e a responsabilidade pelo material.</p>
+              <button class="terms-open secondary-button" type="button" data-terms="seller">Abrir minuta do Termo Geral do Vendedor</button>
+              <label class="terms-acceptance" for="seller-general-terms-accepted">
+                <input id="seller-general-terms-accepted" name="seller-general-terms-accepted" type="checkbox" value="yes" disabled />
+                <span>Li até o final e aceito o Termo Geral do Vendedor — MINUTA-GERAL-VENDEDOR-0.1.</span>
+              </label>
+              <p id="seller-terms-status" class="terms-status">O aceite será liberado após a leitura até o final.</p>
+            </div>
+
+            <div id="buyer-terms-card" class="terms-card field" hidden>
+              <input id="buyer-general-terms-read-to-end" name="buyer-general-terms-read-to-end" type="hidden" value="no" />
+              <h3>Termo Geral do Comprador</h3>
+              <p class="help">Inclui as regras gerais, o compromisso de pagamento e a responsabilidade pela retirada.</p>
+              <button class="terms-open secondary-button" type="button" data-terms="buyer">Abrir minuta do Termo Geral do Comprador</button>
+              <label class="terms-acceptance" for="buyer-general-terms-accepted">
+                <input id="buyer-general-terms-accepted" name="buyer-general-terms-accepted" type="checkbox" value="yes" disabled />
+                <span>Li até o final e aceito o Termo Geral do Comprador — MINUTA-GERAL-COMPRADOR-0.1.</span>
+              </label>
+              <p id="buyer-terms-status" class="terms-status">O aceite será liberado após a leitura até o final.</p>
             </div>
           </div>
         </fieldset>
@@ -520,6 +672,17 @@
       </section>
     </main>
 
+    <dialog id="terms-dialog" aria-labelledby="terms-dialog-title">
+      <div class="terms-dialog-header">
+        <h2 id="terms-dialog-title"></h2>
+      </div>
+      <article id="terms-scroll" class="terms-scroll" tabindex="0"></article>
+      <div class="terms-dialog-footer">
+        <p id="terms-dialog-guidance" class="help">Role o documento até o final para liberar o aceite.</p>
+        <button id="close-terms" type="button">Fechar documento</button>
+      </div>
+    </dialog>
+
     <script>
       const form = document.querySelector("#company-form");
       const review = document.querySelector("#review");
@@ -527,8 +690,52 @@
       const editButton = document.querySelector("#edit-form");
       const submitRequestButton = document.querySelector("#submit-request");
       const submissionStatus = document.querySelector("#submission-status");
+      const interestField = document.querySelector("#interest");
+      const generalTerms = document.querySelector("#general-terms");
+      const termsDialog = document.querySelector("#terms-dialog");
+      const termsDialogTitle = document.querySelector("#terms-dialog-title");
+      const termsScroll = document.querySelector("#terms-scroll");
+      const termsDialogGuidance = document.querySelector("#terms-dialog-guidance");
       const maximumFileSize = 10 * 1024 * 1024;
       let requestId = crypto.randomUUID();
+      let activeTermsType = "";
+
+      const termsInformation = {
+        seller: {
+          title: "Termo Geral do Vendedor",
+          checkboxId: "seller-general-terms-accepted",
+          statusId: "seller-terms-status",
+          version: "MINUTA-GERAL-VENDEDOR-0.1",
+          content: `
+            <p class="draft-mark">MINUTA — CONTEÚDO JURÍDICO PENDENTE DE REVISÃO</p>
+            <h3>1. Finalidade</h3><p>Este Termo registra as condições gerais para a empresa anunciar e vender materiais com a intermediação da Global Shared Stock.</p>
+            <h3>2. Informações e responsabilidade</h3><p>A empresa vendedora declara que as informações, fotografias, quantidades, condições e documentos apresentados correspondem ao material oferecido.</p>
+            <h3>3. Negociação protegida</h3><p>As propostas serão intermediadas pela plataforma. Contatos diretos não poderão ser compartilhados antes da etapa formal de liberação.</p>
+            <h3>4. Comissão</h3><p>A empresa vendedora reconhece a comissão inicial de 10% sobre a operação concluída. O preço informado deverá incluir a comissão e o sistema apresentará o valor líquido estimado.</p>
+            <h3>5. Venda específica</h3><p>Após o acordo, será apresentado um Termo Específico do Vendedor com material, quantidade, preço, prazo, documentação, comissão e valor líquido daquela transação.</p>
+            <h3>6. Ordem de Compra</h3><p>Depois dos aceites específicos, a empresa vendedora deverá anexar a Ordem de Compra da comissão para análise administrativa.</p>
+            <h3>7. Liberação dos contatos</h3><p>Os contatos somente serão liberados depois da aprovação da Ordem de Compra da comissão.</p>
+            <h3>8. Pendência jurídica</h3><p>Esta é uma minuta de planejamento. Dados jurídicos definitivos, canal de privacidade, foro e redação final serão incluídos após revisão especializada.</p>
+            <p class="draft-mark">FIM DA MINUTA — ${"MINUTA-GERAL-VENDEDOR-0.1"}</p>`,
+        },
+        buyer: {
+          title: "Termo Geral do Comprador",
+          checkboxId: "buyer-general-terms-accepted",
+          statusId: "buyer-terms-status",
+          version: "MINUTA-GERAL-COMPRADOR-0.1",
+          content: `
+            <p class="draft-mark">MINUTA — CONTEÚDO JURÍDICO PENDENTE DE REVISÃO</p>
+            <h3>1. Finalidade</h3><p>Este Termo registra as condições gerais para a empresa pesquisar materiais e negociar compras com a intermediação da Global Shared Stock.</p>
+            <h3>2. Manifestações de interesse</h3><p>A empresa compradora compromete-se a registrar interesses reais, com quantidades, prazos e informações verdadeiras.</p>
+            <h3>3. Negociação protegida</h3><p>As propostas serão intermediadas pela plataforma. Contatos diretos não poderão ser compartilhados antes da etapa formal de liberação.</p>
+            <h3>4. Pagamento</h3><p>A empresa compradora será responsável pelo pagamento do material conforme as condições específicas aceitas na negociação.</p>
+            <h3>5. Retirada do material</h3><p>A empresa compradora compromete-se a providenciar a retirada do material no prazo definido na negociação, salvo condição específica registrada de outra forma.</p>
+            <h3>6. Compra específica</h3><p>Após o acordo, será apresentado um Termo Específico do Comprador com material, quantidade, preço, pagamento, retirada, prazo e documentação daquela transação.</p>
+            <h3>7. Liberação dos contatos</h3><p>Os contatos somente serão liberados depois da aprovação da Ordem de Compra da comissão apresentada pela empresa vendedora.</p>
+            <h3>8. Pendência jurídica</h3><p>Esta é uma minuta de planejamento. Dados jurídicos definitivos, canal de privacidade, foro e redação final serão incluídos após revisão especializada.</p>
+            <p class="draft-mark">FIM DA MINUTA — ${"MINUTA-GERAL-COMPRADOR-0.1"}</p>`,
+        },
+      };
 
       const fieldLabels = {
         "company-name": "Nome da empresa",
@@ -541,9 +748,54 @@
         "primary-email": "E-mail principal",
         "copy-email-one": "E-mail em cópia",
         "copy-email-two": "Segundo e-mail em cópia",
-        interest: "Interesse",
+        interest: "Perfil comercial",
         "inventory-size": "Tamanho do estoque",
+        "primary-user-requested": "Solicitação de usuário principal",
+        "seller-general-terms-accepted": "Termo Geral do Vendedor",
+        "buyer-general-terms-accepted": "Termo Geral do Comprador",
       };
+
+      function requiredTermsForProfile() {
+        return {
+          seller: interestField.value === "sell" || interestField.value === "both",
+          buyer: interestField.value === "buy" || interestField.value === "both",
+        };
+      }
+
+      function updateTermsForProfile() {
+        const required = requiredTermsForProfile();
+        generalTerms.hidden = !interestField.value;
+
+        Object.entries(required).forEach(([type, isRequired]) => {
+          const card = document.querySelector(`#${type}-terms-card`);
+          const checkbox = document.querySelector(`#${type}-general-terms-accepted`);
+          card.hidden = !isRequired;
+          checkbox.required = isRequired;
+          if (!isRequired) checkbox.checked = false;
+        });
+      }
+
+      function openTerms(type) {
+        const information = termsInformation[type];
+        activeTermsType = type;
+        termsDialogTitle.textContent = `${information.title} — ${information.version}`;
+        termsScroll.innerHTML = information.content;
+        termsScroll.scrollTop = 0;
+        termsDialogGuidance.textContent = "Role o documento até o final para liberar o aceite.";
+        termsDialog.showModal();
+        termsScroll.focus();
+      }
+
+      function unlockActiveTerms() {
+        if (!activeTermsType) return;
+        const information = termsInformation[activeTermsType];
+        const checkbox = document.querySelector(`#${information.checkboxId}`);
+        const status = document.querySelector(`#${information.statusId}`);
+        document.querySelector(`#${activeTermsType}-general-terms-read-to-end`).value = "yes";
+        checkbox.disabled = false;
+        status.textContent = "Leitura concluída. Agora você pode marcar o aceite.";
+        termsDialogGuidance.textContent = "Leitura até o final registrada. Feche o documento para marcar o aceite.";
+      }
 
       function digitsOnly(value) {
         return value.replace(/\D/g, "");
@@ -606,10 +858,11 @@
 
       function validateRequiredField(field) {
         const emptyFile = field.type === "file" && field.files.length === 0;
-        const emptyValue = field.type !== "file" && !field.value.trim();
+        const uncheckedChoice = field.type === "checkbox" && !field.checked;
+        const emptyValue = field.type !== "file" && field.type !== "checkbox" && !field.value.trim();
 
-        if (field.required && (emptyFile || emptyValue)) {
-          showError(field, "Preencha este campo obrigatório.");
+        if (field.required && (emptyFile || emptyValue || uncheckedChoice)) {
+          showError(field, field.type === "checkbox" ? "Leia o documento até o final e marque este aceite obrigatório." : "Preencha este campo obrigatório.");
           return false;
         }
 
@@ -645,6 +898,11 @@
       }
 
       function fieldDisplayValue(field) {
+        if (field.type === "checkbox") {
+          if (field.id === "primary-user-requested") return field.checked ? "Sim" : "Não";
+          return field.checked ? "Lido e aceito" : "Não se aplica";
+        }
+
         if (field.type === "file") {
           const names = Array.from(field.files).map((file) => file.name);
           return names.length ? names.join(", ") : "Não informado";
@@ -662,6 +920,7 @@
 
         Object.keys(fieldLabels).forEach((fieldId) => {
           const field = document.getElementById(fieldId);
+          if (field.closest("[hidden]")) return;
           const item = document.createElement("div");
           const term = document.createElement("dt");
           const description = document.createElement("dd");
@@ -719,6 +978,16 @@
         showReview();
       });
 
+      interestField.addEventListener("change", updateTermsForProfile);
+      document.querySelectorAll(".terms-open").forEach((button) => {
+        button.addEventListener("click", () => openTerms(button.dataset.terms));
+      });
+      termsScroll.addEventListener("scroll", () => {
+        const reachedEnd = termsScroll.scrollTop + termsScroll.clientHeight >= termsScroll.scrollHeight - 8;
+        if (reachedEnd) unlockActiveTerms();
+      });
+      document.querySelector("#close-terms").addEventListener("click", () => termsDialog.close());
+
       document.querySelector("#cnpj").addEventListener("input", (event) => {
         event.target.value = formatCnpj(event.target.value);
       });
@@ -754,6 +1023,7 @@
           submissionStatus.focus();
           submitRequestButton.textContent = "Cadastro enviado";
           form.reset();
+          updateTermsForProfile();
           requestId = crypto.randomUUID();
         } catch (error) {
           submissionStatus.textContent = error.message;

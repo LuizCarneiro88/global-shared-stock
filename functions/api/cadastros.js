@@ -62,6 +62,11 @@ export async function onRequestPost(context) {
   const copyEmailTwo = text(formData, "copy-email-two").toLowerCase();
   const interest = text(formData, "interest");
   const inventorySize = text(formData, "inventory-size");
+  const primaryUserRequested = text(formData, "primary-user-requested") === "yes";
+  const sellerTermsAccepted = text(formData, "seller-general-terms-accepted") === "yes";
+  const buyerTermsAccepted = text(formData, "buyer-general-terms-accepted") === "yes";
+  const sellerTermsReadToEnd = text(formData, "seller-general-terms-read-to-end") === "yes";
+  const buyerTermsReadToEnd = text(formData, "buyer-general-terms-read-to-end") === "yes";
   const cnpjDocument = formData.get("cnpj-document");
   const companyDocuments = formData.getAll("company-documents");
 
@@ -73,6 +78,14 @@ export async function onRequestPost(context) {
   }
   if (!INTERESTS.has(interest) || !INVENTORY_SIZES.has(inventorySize)) {
     return error("Selecione as opções obrigatórias do perfil comercial.");
+  }
+  const sellerTermsRequired = interest === "sell" || interest === "both";
+  const buyerTermsRequired = interest === "buy" || interest === "both";
+  if (sellerTermsRequired && (!sellerTermsReadToEnd || !sellerTermsAccepted)) {
+    return error("Leia e aceite o Termo Geral do Vendedor para enviar o cadastro.");
+  }
+  if (buyerTermsRequired && (!buyerTermsReadToEnd || !buyerTermsAccepted)) {
+    return error("Leia e aceite o Termo Geral do Comprador para enviar o cadastro.");
   }
   if (!(cnpjDocument instanceof File) || companyDocuments.length === 0) {
     return error("Envie o cartão CNPJ e o contrato social.");
@@ -106,6 +119,11 @@ export async function onRequestPost(context) {
       copyEmailTwo,
       interest,
       inventorySize,
+      primaryUserRequested,
+      generalTermsAcceptances: {
+        ...(sellerTermsRequired ? { seller: { version: "MINUTA-GERAL-VENDEDOR-0.1", readToEnd: true, acceptedAt: new Date().toISOString() } } : {}),
+        ...(buyerTermsRequired ? { buyer: { version: "MINUTA-GERAL-COMPRADOR-0.1", readToEnd: true, acceptedAt: new Date().toISOString() } } : {}),
+      },
       documents: documentRecords,
       status: "pending",
       receivedAt: new Date().toISOString(),

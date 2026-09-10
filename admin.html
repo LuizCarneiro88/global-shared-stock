@@ -98,7 +98,7 @@
 
       .admin-tabs {
         display: grid;
-        grid-template-columns: repeat(3, minmax(0, 1fr));
+        grid-template-columns: repeat(4, minmax(0, 1fr));
         gap: 8px;
         margin-bottom: 22px;
         padding: 6px;
@@ -498,6 +498,7 @@
         <button id="companies-tab" class="tab-button" type="button" role="tab" aria-selected="true" aria-controls="companies-panel">Validação de empresas</button>
         <button id="materials-tab" class="tab-button" type="button" role="tab" aria-selected="false" aria-controls="materials-panel">Validação de materiais</button>
         <button id="interests-tab" class="tab-button" type="button" role="tab" aria-selected="false" aria-controls="interests-panel">Interesses</button>
+        <button id="users-tab" class="tab-button" type="button" role="tab" aria-selected="false" aria-controls="users-panel">Usuários e acessos</button>
       </nav>
 
       <section id="companies-panel" class="tab-panel" role="tabpanel" aria-labelledby="companies-tab">
@@ -527,6 +528,15 @@
         <section id="interest-list" class="company-list" aria-live="polite"><p class="empty-state">Carregando interesses...</p></section>
       </section>
 
+      <section id="users-panel" class="tab-panel" role="tabpanel" aria-labelledby="users-tab" hidden>
+        <section class="summary" aria-label="Resumo dos usuários">
+          <div class="summary-item"><strong id="pending-user-count" class="summary-number">0</strong><span class="summary-label">Aguardando aprovação</span></div>
+          <div class="summary-item"><strong id="active-user-count" class="summary-number">0</strong><span class="summary-label">Acessos liberados</span></div>
+        </section>
+        <div class="panel-toolbar"><button id="refresh-users" class="refresh-button" type="button">Atualizar usuários</button></div>
+        <section id="user-list" class="company-list" aria-live="polite"><p class="empty-state">Carregando usuários...</p></section>
+      </section>
+
       <a class="back-link" href="index.html">Voltar ao início</a>
       <form class="logout-form" action="/api/logout" method="post">
         <button class="logout-button" type="submit">Sair da administração</button>
@@ -544,6 +554,10 @@
       const newInterestCount = document.querySelector("#new-interest-count");
       const totalInterestCount = document.querySelector("#total-interest-count");
       const refreshInterests = document.querySelector("#refresh-interests");
+      const userList = document.querySelector("#user-list");
+      const pendingUserCount = document.querySelector("#pending-user-count");
+      const activeUserCount = document.querySelector("#active-user-count");
+      const refreshUsers = document.querySelector("#refresh-users");
       let interestsAreLoading = false;
       let expandedAdminInterestId = "";
 
@@ -583,6 +597,7 @@
       document.querySelector("#companies-tab").addEventListener("click", (event) => selectTab(event.currentTarget, document.querySelector("#companies-panel")));
       document.querySelector("#materials-tab").addEventListener("click", (event) => selectTab(event.currentTarget, document.querySelector("#materials-panel")));
       document.querySelector("#interests-tab").addEventListener("click", (event) => selectTab(event.currentTarget, document.querySelector("#interests-panel")));
+      document.querySelector("#users-tab").addEventListener("click", (event) => { selectTab(event.currentTarget, document.querySelector("#users-panel")); loadUsers(); });
 
       function formatCnpj(value) {
         return value.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, "$1.$2.$3/$4-$5");
@@ -617,9 +632,18 @@
         const details = document.createElement("dl");
         details.className = "details";
         addDetail(details, "CNPJ", formatCnpj(company.cnpj));
-        addDetail(details, "Interesse", interestLabels[company.interest]);
+        addDetail(details, "Perfil comercial", interestLabels[company.interest]);
         addDetail(details, "Contato principal", company.primaryContact);
         const primaryEmailValue = addDetail(details, "E-mail principal", company.primaryEmail);
+        addDetail(details, "Solicitou ser usuário principal", company.primaryUserRequested ? "Sim — sujeito à aprovação administrativa" : "Não");
+        const sellerTerms = company.generalTermsAcceptances?.seller;
+        const buyerTerms = company.generalTermsAcceptances?.buyer;
+        if (company.interest === "sell" || company.interest === "both") {
+          addDetail(details, "Termo Geral do Vendedor", sellerTerms ? `${sellerTerms.version} — aceito` : "Não registrado neste cadastro");
+        }
+        if (company.interest === "buy" || company.interest === "both") {
+          addDetail(details, "Termo Geral do Comprador", buyerTerms ? `${buyerTerms.version} — aceito` : "Não registrado neste cadastro");
+        }
         addDetail(details, "Tamanho do estoque", inventoryLabels[company.inventorySize]);
         addDetail(details, "Recebido em", new Intl.DateTimeFormat("pt-BR", { dateStyle: "long", timeStyle: "short" }).format(new Date(company.receivedAt)));
 
@@ -1390,6 +1414,85 @@
           materialList.replaceChildren(message);
         }
       }
+
+      function adminUserSituation(user) {
+        if (user.rejectionReason) return `Rejeitado: ${user.rejectionReason}`;
+        if (!user.emailConfirmedAt) return "Aguardando confirmação do e-mail";
+        if (user.role === "additional" && !user.primaryApprovedAt) return "Aguardando aprovação do usuário principal";
+        if (!user.adminApprovedAt) return "Aguardando aprovação administrativa";
+        return user.active ? "Acesso liberado" : "Acesso aguardando atualização";
+      }
+
+      function createUserCard(user) {
+        const article = document.createElement("article");
+        article.className = "company-card";
+        const header = document.createElement("div");
+        header.className = "card-header";
+        const title = document.createElement("h2");
+        title.textContent = user.name;
+        const status = document.createElement("span");
+        status.className = `status ${user.active ? "approved" : user.rejectionReason ? "rejected" : ""}`.trim();
+        status.textContent = adminUserSituation(user);
+        header.append(title, status);
+        const details = document.createElement("dl");
+        details.className = "details";
+        addDetail(details, "Empresa", user.companyName);
+        addDetail(details, "E-mail", user.email);
+        addDetail(details, "Função", user.role === "primary" ? "Usuário principal" : "Usuário adicional");
+        addDetail(details, "E-mail confirmado", user.emailConfirmedAt ? "Sim" : "Não");
+        addDetail(details, "Aprovação do usuário principal", user.role === "primary" ? "Não se aplica" : user.primaryApprovedAt ? "Aprovado" : "Pendente");
+        const feedback = document.createElement("p");
+        feedback.className = "feedback";
+        feedback.hidden = true;
+        const actions = document.createElement("div");
+        actions.className = "actions";
+        if (!user.adminApprovedAt || user.rejectionReason) {
+          const approve = document.createElement("button");
+          approve.className = "action-button approve-button";
+          approve.type = "button";
+          approve.textContent = "Aprovar usuário";
+          const reject = document.createElement("button");
+          reject.className = "action-button reject-button";
+          reject.type = "button";
+          reject.textContent = "Rejeitar usuário";
+          actions.append(approve, reject);
+          const decide = async (action) => {
+            const reason = action === "reject" ? prompt("Informe o motivo da rejeição:") : "";
+            if (action === "reject" && !reason?.trim()) return;
+            approve.disabled = true; reject.disabled = true;
+            try {
+              const response = await fetch("/api/usuarios", { method: "PATCH", headers: { "Content-Type": "application/json", Accept: "application/json" }, body: JSON.stringify({ userId: user.userId, action, reason }) });
+              const result = await response.json();
+              if (!response.ok) throw new Error(result.message || "Não foi possível registrar a decisão.");
+              await loadUsers();
+            } catch (error) {
+              feedback.textContent = error.message; feedback.hidden = false; approve.disabled = false; reject.disabled = false;
+            }
+          };
+          approve.addEventListener("click", () => decide("approve"));
+          reject.addEventListener("click", () => decide("reject"));
+        }
+        article.append(header, details, actions, feedback);
+        return article;
+      }
+
+      async function loadUsers() {
+        refreshUsers.disabled = true;
+        try {
+          const response = await fetch("/api/usuarios", { cache: "no-store", headers: { Accept: "application/json" } });
+          const result = await response.json();
+          if (!response.ok) throw new Error(result.message || "Não foi possível carregar os usuários.");
+          pendingUserCount.textContent = result.users.filter((user) => !user.adminApprovedAt).length;
+          activeUserCount.textContent = result.users.filter((user) => user.active).length;
+          userList.replaceChildren();
+          if (!result.users.length) userList.append(Object.assign(document.createElement("p"), { className: "empty-state", textContent: "Nenhum usuário individual registrado até o momento." }));
+          else result.users.forEach((user) => userList.append(createUserCard(user)));
+        } catch (error) {
+          userList.replaceChildren(Object.assign(document.createElement("p"), { className: "empty-state", textContent: error.message }));
+        } finally { refreshUsers.disabled = false; }
+      }
+
+      refreshUsers.addEventListener("click", loadUsers);
 
       async function loadInterests() {
         if (interestsAreLoading) return;
