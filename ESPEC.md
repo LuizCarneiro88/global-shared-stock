@@ -1,6 +1,6 @@
 # ESPECIFICAÇÃO — GLOBAL SHARED STOCK
 
-Versão de planejamento: 0.2
+Versão de planejamento: 0.3
 
 Atualizada após a conclusão do Dia 3 do Desafio dos 10 Dias
 
@@ -67,9 +67,13 @@ O funcionamento no celular é prioridade máxima, especialmente para pesquisa de
 
 ### 4.5 Usuário principal da empresa
 
-- é o primeiro responsável autorizado da empresa;
+- é obrigatoriamente o primeiro usuário aprovado da empresa;
 - pode aprovar solicitações de outros usuários da mesma empresa;
 - não substitui a aprovação do Administrador quando ela for obrigatória.
+- pode solicitar a transferência da função para outro usuário ativo;
+- a transferência normal exige confirmação do novo responsável e aprovação do Administrador;
+- em situação excepcional, o Administrador pode transferir a função sem a participação do responsável anterior, com motivo registrado;
+- a empresa nunca pode ficar sem um usuário principal.
 
 ### 4.6 Usuário adicional da empresa
 
@@ -96,6 +100,9 @@ O cadastro deverá solicitar:
 - perfil comercial: comprador, vendedor ou ambos;
 - tamanho aproximado do estoque;
 - nome e e-mail do contato principal;
+- contatos comerciais que poderão ser liberados depois da garantia da comissão;
+- endereço completo e um ou mais locais de estoque;
+- opção de salvar um local como padrão para novos materiais;
 - e-mails adicionais para notificações, quando informados;
 - cartão CNPJ;
 - contrato social;
@@ -110,7 +117,7 @@ Antes do envio, a empresa verá uma etapa de revisão. Campos obrigatórios ser�
 Será obrigatório para empresa vendedora e incluirá:
 
 - condições gerais de negociação;
-- comissão de 10%;
+- forma de cálculo da comissão, cuja regra geral inicial é de 10%, podendo existir regra administrativa versionada aplicável à operação;
 - responsabilidade pela procedência, condição, quantidade e documentação do material;
 - compromisso com a veracidade do anúncio;
 - responsabilidade pelo cumprimento da venda.
@@ -133,6 +140,11 @@ Será obrigatório para empresa compradora e incluirá:
 - cada documento precisa ser aberto e percorrido até o final antes da liberação do aceite;
 - o cadastro não pode ser enviado enquanto faltar um aceite obrigatório;
 - o sistema registra versão, empresa, usuário, data e hora.
+- nova versão relevante dos Termos Gerais exige novo aceite das empresas já cadastradas;
+- somente o usuário principal ou representante autorizado realiza o novo aceite em nome da empresa;
+- enquanto o aceite estiver pendente, o histórico continua acessível, mas novas operações do papel afetado ficam bloqueadas com explicação;
+- alteração apenas editorial pode preservar o aceite anterior quando o Administrador assim classificar;
+- Termos Específicos já aceitos permanecem imutáveis.
 
 O conteúdo jurídico definitivo dos Termos permanece pendente de fornecimento pelo responsável pelo projeto.
 
@@ -142,7 +154,7 @@ Uma empresa poderá possuir vários usuários, cada um com seu e-mail corporativ
 
 ### 7.1 Primeiro usuário
 
-- pode solicitar a função de usuário principal;
+- torna-se obrigatoriamente o usuário principal;
 - confirma o próprio e-mail pelo link recebido;
 - depende da aprovação do Administrador;
 - depois da aprovação, passa a ser o usuário principal da empresa.
@@ -164,6 +176,15 @@ Enquanto uma confirmação estiver pendente, o acesso permanece bloqueado e a te
 - o link funciona somente uma vez;
 - nenhuma senha legível é guardada ou exibida.
 
+### 7.4 Transferência do usuário principal
+
+- a transferência normal é iniciada pelo usuário principal atual;
+- o novo responsável precisa ser usuário ativo da mesma empresa e confirmar a responsabilidade;
+- o Administrador aprova a transferência;
+- o responsável anterior passa a ser usuário adicional;
+- em caso de desligamento, perda de acesso ou ausência do responsável anterior, o Administrador pode realizar transferência excepcional, informando o motivo;
+- toda transferência fica registrada no histórico.
+
 ## 8. Cadastro de materiais
 
 O cadastro do material deverá permitir:
@@ -174,12 +195,15 @@ O cadastro do material deverá permitir:
 - classificação controlada;
 - condição: novo, usado, recondicionado ou sucata;
 - quantidade maior que zero;
+- local de estoque previamente salvo ou novo local cadastrado;
 - unidade de medida, incluindo metro quadrado e metro cúbico;
 - preço final em dólar com a comissão incluída;
 - apresentação do valor líquido estimado para o vendedor;
 - descrição complementar;
 - até seis fotografias;
 - certificado opcional em PDF ou imagem.
+
+O material manterá quantidades separadas de estoque atual, reservado, vendido e disponível. A disponibilidade será calculada pelo sistema e nunca poderá ficar negativa.
 
 Valores serão apresentados no padrão americano: vírgula para separar milhares e ponto para separar centavos.
 
@@ -199,8 +223,9 @@ O Administrador poderá:
 - conferir fotografias e certificado;
 - solicitar correção com motivo;
 - rejeitar com motivo;
-- aprovar;
-- publicar o anúncio.
+- aprovar e publicar em uma única ação.
+
+Ao selecionar **Aprovar e publicar**, o sistema registra a aprovação, cria o anúncio e o torna visível. Se qualquer parte falhar, nenhuma confirmação falsa será apresentada. Não haverá estado intermediário de material aprovado aguardando uma segunda ação de publicação.
 
 O vendedor verá a situação e as orientações aplicáveis. Nenhuma rejeição ou solicitação de correção será apresentada sem explicação.
 
@@ -215,7 +240,7 @@ A pesquisa deverá priorizar o celular e permitir busca por:
 - condição;
 - disponibilidade.
 
-O visitante verá fotografias, descrição, condição e disponibilidade. No lugar do preço será apresentada a mensagem “Preço disponível para empresas cadastradas”.
+O visitante verá fotografias, descrição, condição, disponibilidade, país e estado. No lugar do preço será apresentada a mensagem “Preço disponível para empresas cadastradas”. Cidade, endereço, unidade, contatos e qualquer referência que identifique o vendedor permanecerão ocultos.
 
 A identidade da empresa vendedora permanecerá oculta.
 
@@ -250,6 +275,8 @@ Depois de uma rejeição ou correção solicitada, a empresa compradora poderá 
 ## 13. Negociação intermediada
 
 Cada negociação ficará vinculada a um produto e terá histórico próprio.
+
+O interesse inicial não reserva estoque. Depois que o vendedor confirmar a quantidade e a resposta for validada administrativamente, o sistema cria uma reserva vinculada à negociação. Ajustes alteram a reserva somente quando houver saldo. Rejeição, encerramento ou expiração liberam a reserva; venda concluída converte a reserva em quantidade vendida.
 
 ### 13.1 Resposta do vendedor
 
@@ -333,23 +360,70 @@ Incluirá:
 
 ## 16. Comissão, Ordem de Compra e contatos
 
-- a comissão inicial da plataforma será de 10%;
+- a comissão geral inicial da plataforma será de 10%, administrada por regra versionada;
+- o Administrador poderá definir regras por empresa, categoria, faixa de valor, combinação ou exceção específica;
+- somente uma regra será aplicada, conforme a prioridade definida;
+- mudanças não atingirão retroativamente anúncios ou negociações já vinculados a uma versão anterior;
 - o preço final informado pelo vendedor já incluirá a comissão;
 - o sistema mostrará comissão e valor líquido do vendedor;
 - somente depois que os dois Termos Específicos forem aceitos o vendedor poderá anexar a Ordem de Compra da comissão;
 - a Ordem de Compra poderá ser enviada em PDF ou imagem;
 - o Administrador poderá aprovar, rejeitar ou solicitar correção com motivo;
 - os contatos serão liberados somente depois da aprovação da Ordem de Compra.
+- após a liberação, as partes verão os contatos comerciais selecionados e o endereço completo do local relacionado;
+- o sistema guardará uma cópia dos contatos e do local efetivamente liberados naquela negociação.
 
 ## 17. Encerramento da negociação
 
 O Administrador determinará se a negociação foi concluída com venda ou encerrada sem venda. O encerramento não dependerá de uma confirmação final do comprador ou do vendedor.
 
-Quando o material for marcado como vendido:
+Quando uma venda for concluída, a reserva será convertida em quantidade vendida. Se ainda houver saldo, o anúncio continuará publicado com a quantidade remanescente. Somente quando não houver saldo remanescente:
 
 - o anúncio receberá a indicação “Vendido”;
 - permanecerá na vitrine por cinco dias para demonstrar movimento da plataforma;
 - depois será retirado da vitrine.
+
+Indicadores como disponível, em negociação parcial, totalmente em negociação, vendido parcialmente e esgotado serão calculados pelas quantidades; não serão uma situação única preenchida manualmente no material.
+
+### 17.1 Alteração, suspensão e retirada de anúncio
+
+- o vendedor não altera diretamente uma versão publicada;
+- solicita alteração, suspensão temporária ou retirada, informando o motivo;
+- a versão pública permanece preservada enquanto a proposta de alteração é analisada;
+- o Administrador compara versões e pode aprovar e republicar, solicitar correção ou rejeitar com motivo;
+- quantidade não pode ser reduzida abaixo do total já reservado e vendido;
+- preço alterado não muda silenciosamente negociações iniciadas;
+- havendo reserva ou negociação ativa, a retirada definitiva depende do encerramento administrativo dessas operações;
+- o anúncio pode ser suspenso para impedir novos interesses durante a análise;
+- documentos e versões anteriores não são apagados.
+
+### 17.2 Contatos comerciais e locais de estoque
+
+- a empresa mantém um catálogo reutilizável de contatos comerciais e locais de estoque;
+- cada material aponta para um local salvo e pode indicar o contato responsável;
+- a empresa pode definir um local padrão para novos materiais;
+- antes da garantia da comissão, somente país e estado são exibidos fora da administração;
+- cidade, endereço completo, contato, telefone, WhatsApp, e-mail e orientações de retirada ficam protegidos;
+- depois da aprovação da Ordem de Compra, os dados selecionados são liberados às partes e preservados como cópia histórica da negociação;
+- alterações de contatos ou locais destinados ao compartilhamento passam por validação administrativa.
+
+### 17.3 Alteração do perfil comercial
+
+- somente o usuário principal solicita mudança entre compradora, vendedora ou perfil duplo;
+- o perfil atual permanece vigente enquanto a solicitação é analisada;
+- a inclusão de um papel exige o Termo Geral vigente daquele papel e os dados adicionais aplicáveis;
+- o Administrador aprova, solicita correção ou rejeita com motivo;
+- a remoção de um papel não apaga histórico e não entra em vigor enquanto houver operações ativas relacionadas;
+- a plataforma pode impedir novas operações do papel cuja remoção esteja em processamento;
+- suspensão administrativa por segurança é diferente da alteração voluntária.
+
+### 17.4 Fonte de verdade das situações
+
+- a situação de validação do material controla rascunho, análise, correção, rejeição e aprovação;
+- as quantidades controlam disponibilidade, reserva, venda parcial e esgotamento;
+- a situação do anúncio controla apenas publicação, suspensão, retirada, exibição como vendido e arquivamento;
+- indicadores comerciais são calculados, evitando dois campos com o mesmo significado;
+- anúncio continua publicado durante vendas parciais e somente muda para **Vendido** quando o saldo remanescente após a conclusão for zero.
 
 ## 18. Organização das áreas protegidas
 
@@ -362,6 +436,8 @@ Será dividida em:
 - Negociações;
 - Concluídos.
 
+A área de dados da empresa reunirá contatos comerciais, locais de estoque, usuários, transferência do usuário principal, Termos Gerais pendentes e solicitações de alteração do perfil comercial.
+
 ### 18.2 Painel administrativo
 
 Será dividido em:
@@ -370,6 +446,8 @@ Será dividido em:
 - Validação de materiais;
 - Interesses e negociações;
 - Usuários e acessos;
+- Alterações solicitadas;
+- Comissões e Termos;
 - Concluídos.
 
 Cada registro será mostrado primeiro de forma resumida e abrirá os detalhes somente quando selecionado.

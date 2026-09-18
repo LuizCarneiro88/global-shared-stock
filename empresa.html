@@ -66,6 +66,15 @@
       .negotiation-thread .material-card { border: 0; border-top: 1px solid var(--line); border-radius: 0; }
       .material-header { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 10px; }
       .material-card p { margin: 8px 0 0; color: var(--muted); line-height: 1.45; }
+      .company-data-grid { display: grid; gap: 12px; }
+      .company-data-card { padding: 16px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface-light); }
+      .company-data-card h3 { margin-bottom: 12px; }
+      .company-data-list { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; margin: 0; }
+      .company-data-list div { padding-bottom: 9px; border-bottom: 1px solid var(--line); }
+      .company-data-list div:last-child { padding-bottom: 0; border-bottom: 0; }
+      .company-data-list dt { color: var(--muted); font-size: .72rem; }
+      .company-data-list dd { margin: 3px 0 0; overflow-wrap: anywhere; font-weight: 700; }
+      .protected-note { margin: 12px 0 0; color: var(--muted); font-size: .76rem; line-height: 1.45; }
       .material-values { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 14px; font-size: 0.82rem; }
       .card-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
       .status-pill { padding: 6px 9px; border: 1px solid #5a5f67; border-radius: 999px; color: var(--silver); font-size: 0.72rem; font-weight: 750; }
@@ -127,6 +136,7 @@
         <button id="negotiations-tab" class="workspace-tab" type="button" role="tab" aria-selected="false" aria-controls="negotiations-panel">Negociações <span id="negotiations-notification" class="tab-notification" hidden></span></button>
         <button id="completed-tab" class="workspace-tab" type="button" role="tab" aria-selected="false" aria-controls="completed-panel">Concluídos</button>
         <button id="users-tab" class="workspace-tab" type="button" role="tab" aria-selected="false" aria-controls="users-panel">Usuários e acessos</button>
+        <button id="company-data-tab" class="workspace-tab" type="button" role="tab" aria-selected="false" aria-controls="company-data-panel">Dados da empresa</button>
       </nav>
 
       <section id="materials-panel" class="workspace-tab-panel" role="tabpanel" aria-labelledby="materials-tab">
@@ -242,6 +252,17 @@
         </section>
       </section>
 
+      <section id="company-data-panel" class="workspace-tab-panel" role="tabpanel" aria-labelledby="company-data-tab" hidden>
+        <section class="panel" aria-labelledby="company-data-title">
+          <h2 id="company-data-title">Dados da empresa</h2>
+          <p class="introduction">Consulte os dados cadastrados, os contatos comerciais e os locais de estoque da empresa.</p>
+          <div id="company-data-content" class="company-data-grid">
+            <div class="company-data-card">Carregando dados da empresa...</div>
+          </div>
+          <p class="protected-note">A transferência do usuário principal e a alteração do perfil comercial serão disponibilizadas em um fluxo próprio, com aprovação administrativa.</p>
+        </section>
+      </section>
+
       <form class="logout" action="/api/logout" method="post"><button class="secondary" type="submit">Sair</button></form>
     </main>
 
@@ -304,11 +325,16 @@
       const newUserPanel = document.querySelector("#new-user-panel");
       const newUserForm = document.querySelector("#new-user-form");
       const newUserFeedback = document.querySelector("#new-user-feedback");
+      const companyDataContent = document.querySelector("#company-data-content");
       let activeTermsReading = null;
       let loadedNegotiations = [];
       let interestsAreLoading = false;
+      let companyDataLoaded = false;
       const workspaceTabs = [...document.querySelectorAll(".workspace-tab")];
       const workspacePanels = [...document.querySelectorAll(".workspace-tab-panel")];
+      const companyProfileLabels = { buy: "Compradora", sell: "Vendedora", both: "Compradora e vendedora" };
+      const companyInventoryLabels = { "under-100k": "Abaixo de R$ 100 mil", "100k-to-999k": "Entre R$ 100 mil e R$ 999 mil", "1m-to-5m": "Entre R$ 1 milhão e R$ 5 milhões", "over-5m": "Acima de R$ 5 milhões" };
+      const contactPreferenceLabels = { email: "E-mail", phone: "Telefone", whatsapp: "WhatsApp" };
 
       function openWorkspaceTab(tab) {
         if (!tab || tab.hidden) return;
@@ -316,7 +342,10 @@
         workspacePanels.forEach((panel) => { panel.hidden = panel.id !== tab.getAttribute("aria-controls"); });
       }
 
-      workspaceTabs.forEach((tab) => tab.addEventListener("click", () => openWorkspaceTab(tab)));
+      workspaceTabs.forEach((tab) => tab.addEventListener("click", () => {
+        openWorkspaceTab(tab);
+        if (tab.id === "company-data-tab" && !companyDataLoaded) loadCompanyData();
+      }));
 
       function configureWorkspace(companyInterest) {
         const materialsTab = document.querySelector("#materials-tab");
@@ -362,6 +391,99 @@
           newUserPanel.hidden = !result.canManage;
         } catch (error) {
           companyUserList.replaceChildren(Object.assign(document.createElement("li"), { className: "material-card", textContent: error.message }));
+        }
+      }
+
+      function formattedCnpj(value) {
+        return String(value || "").replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, "$1.$2.$3/$4-$5") || "Não informado";
+      }
+
+      function companyDataCard(title, entries, note = "") {
+        const card = document.createElement("section");
+        card.className = "company-data-card";
+        const heading = document.createElement("h3");
+        heading.textContent = title;
+        const list = document.createElement("dl");
+        list.className = "company-data-list";
+        entries.forEach(([label, value]) => {
+          const row = document.createElement("div");
+          const term = document.createElement("dt");
+          const description = document.createElement("dd");
+          term.textContent = label;
+          description.textContent = value || "Não informado";
+          row.append(term, description);
+          list.append(row);
+        });
+        card.append(heading, list);
+        if (note) {
+          const information = document.createElement("p");
+          information.className = "protected-note";
+          information.textContent = note;
+          card.append(information);
+        }
+        return card;
+      }
+
+      function renderCompanyData(company) {
+        const cards = [
+          companyDataCard("Resumo cadastral", [
+            ["Empresa", company.companyName],
+            ["CNPJ", formattedCnpj(company.cnpj)],
+            ["Inscrição estadual", company.stateRegistration],
+            ["Inscrição municipal", company.cityRegistration],
+            ["Perfil comercial", companyProfileLabels[company.commercialProfile] || company.commercialProfile],
+            ["Tamanho do estoque", companyInventoryLabels[company.inventorySize] || company.inventorySize],
+          ]),
+          companyDataCard("Usuário principal", [
+            ["Nome", company.primaryUser?.name],
+            ["E-mail", company.primaryUser?.email],
+            ["Função", "Usuário principal"],
+          ]),
+        ];
+
+        company.commercialContacts.forEach((contact, index) => {
+          cards.push(companyDataCard(contact.primary ? "Contato comercial principal" : `Contato comercial adicional ${index}`, [
+            ["Nome", contact.name],
+            ["Cargo", contact.role],
+            ["E-mail", contact.email],
+            ["Telefone", contact.phone],
+            ["WhatsApp", contact.whatsapp],
+            ["Meio preferido", contactPreferenceLabels[contact.preferredContact] || contact.preferredContact],
+          ], "Este contato somente será compartilhado com a contraparte depois da liberação formal."));
+        });
+
+        company.stockLocations.forEach((location, index) => {
+          const address = location.protectedAddress || {};
+          cards.push(companyDataCard(`Local de estoque ${index + 1}`, [
+            ["Nome do local", location.name],
+            ["País", location.country],
+            ["Estado", location.state],
+            ["Cidade", address.city],
+            ["CEP", address.postalCode],
+            ["Bairro", address.neighborhood],
+            ["Logradouro", address.street],
+            ["Número", address.number],
+            ["Complemento", address.complement],
+            ["Instruções de retirada", address.pickupReference],
+            ["Restrições de acesso", address.accessRestrictions],
+            ["Recursos de carregamento", address.loadingResources],
+            ["Padrão para novos materiais", location.defaultForNewMaterials ? "Sim" : "Não"],
+          ], "Somente país e estado podem aparecer antes da formalização. Da cidade em diante, o endereço é protegido."));
+        });
+
+        if (!company.stockLocations.length) cards.push(companyDataCard("Locais de estoque", [["Situação", "Nenhum local de estoque cadastrado para este perfil."]]));
+        companyDataContent.replaceChildren(...cards);
+      }
+
+      async function loadCompanyData() {
+        try {
+          const response = await fetch("/api/empresa/dados", { cache: "no-store", headers: { Accept: "application/json" } });
+          const result = await response.json();
+          if (!response.ok) throw new Error(result.message || "Não foi possível carregar os dados da empresa.");
+          renderCompanyData(result.company);
+          companyDataLoaded = true;
+        } catch (error) {
+          companyDataContent.replaceChildren(companyDataCard("Dados indisponíveis", [["Motivo", error.message]]));
         }
       }
 

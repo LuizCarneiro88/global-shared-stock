@@ -415,6 +415,28 @@
         overflow-wrap: anywhere;
       }
 
+      .contact-card {
+        display: grid;
+        gap: 18px;
+        padding: 18px;
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        background: rgba(255, 255, 255, 0.025);
+      }
+
+      .contact-card + .contact-card {
+        margin-top: 16px;
+      }
+
+      .contact-card h3 {
+        margin: 0;
+        font-size: 1rem;
+      }
+
+      .contact-card .remove-contact {
+        margin-top: 0;
+      }
+
       @media (min-width: 650px) {
         main {
           padding: 48px 0 72px;
@@ -543,7 +565,8 @@
         </fieldset>
 
         <fieldset>
-          <legend>3. Contatos</legend>
+          <legend>3. Contatos comerciais e notificações</legend>
+          <p class="help">O contato principal também será o primeiro usuário da empresa. Os contatos comerciais serão compartilhados somente depois da liberação formal.</p>
           <div class="fields two-columns">
             <div class="field">
               <label class="required" for="primary-contact">
@@ -568,6 +591,31 @@
             </div>
 
             <div class="field">
+              <label class="required" for="primary-role">Cargo</label>
+              <input id="primary-role" name="primary-role" type="text" maxlength="100" required />
+            </div>
+
+            <div class="field">
+              <label for="primary-phone">Telefone <span class="optional">(opcional)</span></label>
+              <input id="primary-phone" name="primary-phone" type="tel" maxlength="30" />
+            </div>
+
+            <div class="field">
+              <label for="primary-whatsapp">WhatsApp <span class="optional">(opcional)</span></label>
+              <input id="primary-whatsapp" name="primary-whatsapp" type="tel" maxlength="30" />
+            </div>
+
+            <div class="field">
+              <label class="required" for="primary-contact-preference">Meio de contato preferido</label>
+              <select id="primary-contact-preference" name="primary-contact-preference" required>
+                <option value="">Selecione</option>
+                <option value="email">E-mail</option>
+                <option value="phone">Telefone</option>
+                <option value="whatsapp">WhatsApp</option>
+              </select>
+            </div>
+
+            <div class="field">
               <label for="copy-email-one">
                 E-mail em cópia <span class="optional">(opcional)</span>
               </label>
@@ -581,7 +629,33 @@
               <input id="copy-email-two" name="copy-email-two" type="email" />
             </div>
           </div>
+
+          <div id="additional-contacts" aria-live="polite"></div>
+          <button id="add-commercial-contact" class="secondary-button" type="button">Adicionar outro contato comercial</button>
         </fieldset>
+
+        <template id="commercial-contact-template">
+          <section class="contact-card">
+            <h3>Contato comercial adicional</h3>
+            <div class="fields two-columns">
+              <div class="field"><label class="required">Nome</label><input name="commercial-contact-name" type="text" maxlength="150" required /></div>
+              <div class="field"><label class="required">Cargo</label><input name="commercial-contact-role" type="text" maxlength="100" required /></div>
+              <div class="field"><label class="required">E-mail</label><input name="commercial-contact-email" type="email" maxlength="254" required /></div>
+              <div class="field"><label>Telefone <span class="optional">(opcional)</span></label><input name="commercial-contact-phone" type="tel" maxlength="30" /></div>
+              <div class="field"><label>WhatsApp <span class="optional">(opcional)</span></label><input name="commercial-contact-whatsapp" type="tel" maxlength="30" /></div>
+              <div class="field">
+                <label class="required">Meio de contato preferido</label>
+                <select name="commercial-contact-preference" required>
+                  <option value="">Selecione</option>
+                  <option value="email">E-mail</option>
+                  <option value="phone">Telefone</option>
+                  <option value="whatsapp">WhatsApp</option>
+                </select>
+              </div>
+            </div>
+            <button class="secondary-button remove-contact" type="button">Remover este contato</button>
+          </section>
+        </template>
 
         <fieldset>
           <legend>4. Perfil comercial</legend>
@@ -597,9 +671,7 @@
             </div>
 
             <div class="field">
-              <label class="required" for="inventory-size">
-                Tamanho do estoque
-              </label>
+              <label class="required" for="inventory-size">Tamanho do estoque</label>
               <select id="inventory-size" name="inventory-size" required>
                 <option value="">Selecione</option>
                 <option value="under-100k">Abaixo de R$ 100 mil</option>
@@ -609,20 +681,75 @@
               </select>
             </div>
 
-            <div class="field choice-field">
-              <label class="choice-label" for="primary-user-requested">
-                <input id="primary-user-requested" name="primary-user-requested" type="checkbox" value="yes" />
-                <span>Solicito ser o usuário principal desta empresa.</span>
+            <div class="field">
+              <p class="help"><strong>Usuário principal:</strong> o primeiro usuário aprovado será obrigatoriamente o usuário principal desta empresa.</p>
+            </div>
+          </div>
+        </fieldset>
+
+        <fieldset id="stock-location-section" hidden>
+          <legend>5. Local de estoque</legend>
+          <p class="help">Antes da liberação formal, somente país e estado poderão ser exibidos. Todos os dados a partir da cidade permanecerão protegidos.</p>
+          <div class="fields two-columns">
+            <div class="field">
+              <label class="required" for="stock-location-name">Nome do local</label>
+              <input id="stock-location-name" name="stock-location-name" type="text" maxlength="120" data-required-for-seller />
+            </div>
+            <div class="field">
+              <label class="required" for="stock-country">País</label>
+              <input id="stock-country" name="stock-country" type="text" maxlength="100" autocomplete="country-name" data-required-for-seller />
+            </div>
+            <div class="field">
+              <label class="required" for="stock-state">Estado</label>
+              <input id="stock-state" name="stock-state" type="text" maxlength="100" autocomplete="address-level1" data-required-for-seller />
+            </div>
+            <div class="field">
+              <label class="required" for="stock-city">Cidade <span class="optional">(protegida)</span></label>
+              <input id="stock-city" name="stock-city" type="text" maxlength="120" autocomplete="address-level2" data-required-for-seller />
+            </div>
+            <div class="field">
+              <label class="required" for="stock-postal-code">CEP <span class="optional">(protegido)</span></label>
+              <input id="stock-postal-code" name="stock-postal-code" type="text" maxlength="20" inputmode="numeric" autocomplete="postal-code" data-required-for-seller />
+            </div>
+            <div class="field">
+              <label class="required" for="stock-neighborhood">Bairro <span class="optional">(protegido)</span></label>
+              <input id="stock-neighborhood" name="stock-neighborhood" type="text" maxlength="120" autocomplete="address-level3" data-required-for-seller />
+            </div>
+            <div class="field">
+              <label class="required" for="stock-street">Logradouro <span class="optional">(protegido)</span></label>
+              <input id="stock-street" name="stock-street" type="text" maxlength="180" autocomplete="address-line1" data-required-for-seller />
+            </div>
+            <div class="field">
+              <label class="required" for="stock-number">Número <span class="optional">(protegido)</span></label>
+              <input id="stock-number" name="stock-number" type="text" maxlength="30" data-required-for-seller />
+            </div>
+            <div class="field">
+              <label for="stock-complement">Complemento <span class="optional">(opcional e protegido)</span></label>
+              <input id="stock-complement" name="stock-complement" type="text" maxlength="120" autocomplete="address-line2" />
+            </div>
+            <div class="field field-wide">
+              <label for="stock-pickup-reference">Instruções de retirada <span class="optional">(opcional e protegido)</span></label>
+              <textarea id="stock-pickup-reference" name="stock-pickup-reference" maxlength="500"></textarea>
+            </div>
+            <div class="field field-wide">
+              <label for="stock-access-restrictions">Restrições de acesso <span class="optional">(opcional e protegido)</span></label>
+              <textarea id="stock-access-restrictions" name="stock-access-restrictions" maxlength="500"></textarea>
+            </div>
+            <div class="field field-wide">
+              <label for="stock-loading-resources">Recursos de carregamento <span class="optional">(opcional e protegido)</span></label>
+              <textarea id="stock-loading-resources" name="stock-loading-resources" maxlength="500"></textarea>
+            </div>
+            <div class="field choice-field field-wide">
+              <label class="choice-label" for="stock-default-location">
+                <input id="stock-default-location" name="stock-default-location" type="checkbox" value="yes" checked />
+                <span>Usar este local como padrão nos próximos cadastros de materiais.</span>
               </label>
-              <p class="help">
-                A função será confirmada pelo Administrador após a análise do cadastro.
-              </p>
             </div>
           </div>
         </fieldset>
 
         <fieldset id="general-terms" hidden>
-          <legend>5. Termos Gerais</legend>
+          <legend>6. Termos Gerais</legend>
           <p class="help">
             Os documentos abaixo são minutas. Abra cada Termo exigido pelo perfil, leia até o final e marque o aceite.
           </p>
@@ -692,13 +819,18 @@
       const submissionStatus = document.querySelector("#submission-status");
       const interestField = document.querySelector("#interest");
       const generalTerms = document.querySelector("#general-terms");
+      const stockLocationSection = document.querySelector("#stock-location-section");
       const termsDialog = document.querySelector("#terms-dialog");
       const termsDialogTitle = document.querySelector("#terms-dialog-title");
       const termsScroll = document.querySelector("#terms-scroll");
       const termsDialogGuidance = document.querySelector("#terms-dialog-guidance");
+      const additionalContacts = document.querySelector("#additional-contacts");
+      const commercialContactTemplate = document.querySelector("#commercial-contact-template");
+      const addCommercialContactButton = document.querySelector("#add-commercial-contact");
       const maximumFileSize = 10 * 1024 * 1024;
       let requestId = crypto.randomUUID();
       let activeTermsType = "";
+      let contactSequence = 0;
 
       const termsInformation = {
         seller: {
@@ -746,11 +878,27 @@
         "company-documents": "Contrato social e alterações",
         "primary-contact": "Nome do contato principal",
         "primary-email": "E-mail principal",
+        "primary-role": "Cargo do contato principal",
+        "primary-phone": "Telefone do contato principal",
+        "primary-whatsapp": "WhatsApp do contato principal",
+        "primary-contact-preference": "Meio de contato preferido",
         "copy-email-one": "E-mail em cópia",
         "copy-email-two": "Segundo e-mail em cópia",
         interest: "Perfil comercial",
         "inventory-size": "Tamanho do estoque",
-        "primary-user-requested": "Solicitação de usuário principal",
+        "stock-location-name": "Nome do local de estoque",
+        "stock-country": "País",
+        "stock-state": "Estado",
+        "stock-city": "Cidade — protegida",
+        "stock-postal-code": "CEP — protegido",
+        "stock-neighborhood": "Bairro — protegido",
+        "stock-street": "Logradouro — protegido",
+        "stock-number": "Número — protegido",
+        "stock-complement": "Complemento — protegido",
+        "stock-pickup-reference": "Instruções de retirada — protegidas",
+        "stock-access-restrictions": "Restrições de acesso — protegidas",
+        "stock-loading-resources": "Recursos de carregamento — protegidos",
+        "stock-default-location": "Local padrão para novos materiais",
         "seller-general-terms-accepted": "Termo Geral do Vendedor",
         "buyer-general-terms-accepted": "Termo Geral do Comprador",
       };
@@ -765,6 +913,11 @@
       function updateTermsForProfile() {
         const required = requiredTermsForProfile();
         generalTerms.hidden = !interestField.value;
+        const stockLocationRequired = interestField.value === "sell" || interestField.value === "both";
+        stockLocationSection.hidden = !stockLocationRequired;
+        stockLocationSection.querySelectorAll("[data-required-for-seller]").forEach((field) => {
+          field.required = stockLocationRequired;
+        });
 
         Object.entries(required).forEach(([type, isRequired]) => {
           const card = document.querySelector(`#${type}-terms-card`);
@@ -878,6 +1031,18 @@
         return false;
       }
 
+      function validatePreferredContact(preferenceField, phoneField, whatsappField) {
+        if (preferenceField.value === "phone" && !phoneField.value.trim()) {
+          showError(phoneField, "Informe o telefone escolhido como meio de contato preferido.");
+          return false;
+        }
+        if (preferenceField.value === "whatsapp" && !whatsappField.value.trim()) {
+          showError(whatsappField, "Informe o WhatsApp escolhido como meio de contato preferido.");
+          return false;
+        }
+        return true;
+      }
+
       function validateFiles(field) {
         let valid = true;
 
@@ -899,7 +1064,7 @@
 
       function fieldDisplayValue(field) {
         if (field.type === "checkbox") {
-          if (field.id === "primary-user-requested") return field.checked ? "Sim" : "Não";
+          if (field.id === "stock-default-location") return field.checked ? "Sim" : "Não";
           return field.checked ? "Lido e aceito" : "Não se aplica";
         }
 
@@ -928,6 +1093,23 @@
           item.className = "review-item";
           term.textContent = fieldLabels[fieldId];
           description.textContent = fieldDisplayValue(field);
+          item.append(term, description);
+          reviewList.append(item);
+        });
+
+        additionalContacts.querySelectorAll(".contact-card").forEach((card, index) => {
+          const name = card.querySelector('[name="commercial-contact-name"]').value.trim();
+          const role = card.querySelector('[name="commercial-contact-role"]').value.trim();
+          const email = card.querySelector('[name="commercial-contact-email"]').value.trim();
+          const phone = card.querySelector('[name="commercial-contact-phone"]').value.trim();
+          const whatsapp = card.querySelector('[name="commercial-contact-whatsapp"]').value.trim();
+          const preference = card.querySelector('[name="commercial-contact-preference"]');
+          const item = document.createElement("div");
+          const term = document.createElement("dt");
+          const description = document.createElement("dd");
+          item.className = "review-item";
+          term.textContent = `Contato comercial adicional ${index + 1}`;
+          description.textContent = `${name} — ${role} — ${email}${phone ? ` — Telefone: ${phone}` : ""}${whatsapp ? ` — WhatsApp: ${whatsapp}` : ""} — Preferência: ${preference.options[preference.selectedIndex].text}`;
           item.append(term, description);
           reviewList.append(item);
         });
@@ -968,6 +1150,20 @@
           valid = false;
         }
 
+        if (!validatePreferredContact(
+          document.querySelector("#primary-contact-preference"),
+          document.querySelector("#primary-phone"),
+          document.querySelector("#primary-whatsapp"),
+        )) valid = false;
+
+        additionalContacts.querySelectorAll(".contact-card").forEach((card) => {
+          if (!validatePreferredContact(
+            card.querySelector('[name="commercial-contact-preference"]'),
+            card.querySelector('[name="commercial-contact-phone"]'),
+            card.querySelector('[name="commercial-contact-whatsapp"]'),
+          )) valid = false;
+        });
+
         if (!valid) {
           const firstInvalidField = form.querySelector('[aria-invalid="true"]');
           firstInvalidField?.focus();
@@ -979,6 +1175,19 @@
       });
 
       interestField.addEventListener("change", updateTermsForProfile);
+      addCommercialContactButton.addEventListener("click", () => {
+        contactSequence += 1;
+        const fragment = commercialContactTemplate.content.cloneNode(true);
+        const card = fragment.querySelector(".contact-card");
+        card.querySelectorAll("input, select").forEach((field) => {
+          field.id = `${field.name}-${contactSequence}`;
+          const label = field.closest(".field").querySelector("label");
+          label.htmlFor = field.id;
+        });
+        card.querySelector(".remove-contact").addEventListener("click", () => card.remove());
+        additionalContacts.append(fragment);
+        card.querySelector("input").focus();
+      });
       document.querySelectorAll(".terms-open").forEach((button) => {
         button.addEventListener("click", () => openTerms(button.dataset.terms));
       });

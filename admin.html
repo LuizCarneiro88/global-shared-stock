@@ -562,6 +562,7 @@
       let expandedAdminInterestId = "";
 
       const interestLabels = { buy: "Compra", sell: "Venda", both: "Compra e venda" };
+      const contactPreferenceLabels = { email: "E-mail", phone: "Telefone", whatsapp: "WhatsApp" };
       const inventoryLabels = {
         "under-100k": "Abaixo de R$ 100 mil",
         "100k-to-999k": "Entre R$ 100 mil e R$ 999 mil",
@@ -635,7 +636,24 @@
         addDetail(details, "Perfil comercial", interestLabels[company.interest]);
         addDetail(details, "Contato principal", company.primaryContact);
         const primaryEmailValue = addDetail(details, "E-mail principal", company.primaryEmail);
-        addDetail(details, "Solicitou ser usuário principal", company.primaryUserRequested ? "Sim — sujeito à aprovação administrativa" : "Não");
+        addDetail(details, "Primeiro usuário", "Usuário principal após a aprovação administrativa");
+        (company.commercialContacts || []).forEach((contact, index) => {
+          const channels = [contact.phone && `Telefone: ${contact.phone}`, contact.whatsapp && `WhatsApp: ${contact.whatsapp}`].filter(Boolean).join(" · ");
+          addDetail(
+            details,
+            contact.primary ? "Contato comercial principal" : `Contato comercial adicional ${index}`,
+            `${contact.name} · ${contact.role} · ${contact.email}${channels ? ` · ${channels}` : ""} · Preferência: ${contactPreferenceLabels[contact.preferredContact] || contact.preferredContact}`,
+          );
+        });
+        (company.stockLocations || []).forEach((location, index) => {
+          const address = location.protectedAddress || {};
+          addDetail(details, `Local de estoque ${index + 1}`, `${location.name} · ${location.country} · ${location.state}`);
+          addDetail(details, "Endereço protegido", `${address.street}, ${address.number}${address.complement ? ` · ${address.complement}` : ""} · ${address.neighborhood} · ${address.city} · CEP ${address.postalCode}`);
+          if (address.pickupReference) addDetail(details, "Instruções de retirada", address.pickupReference);
+          if (address.accessRestrictions) addDetail(details, "Restrições de acesso", address.accessRestrictions);
+          if (address.loadingResources) addDetail(details, "Recursos de carregamento", address.loadingResources);
+          addDetail(details, "Padrão para novos materiais", location.defaultForNewMaterials ? "Sim" : "Não");
+        });
         const sellerTerms = company.generalTermsAcceptances?.seller;
         const buyerTerms = company.generalTermsAcceptances?.buyer;
         if (company.interest === "sell" || company.interest === "both") {

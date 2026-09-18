@@ -1,6 +1,6 @@
 # MODELO DE DADOS — GLOBAL SHARED STOCK
 
-Versão de planejamento: 0.2  
+Versão de planejamento: 0.3
 Etapa: Dia 3 do Desafio dos 10 Dias  
 Este documento descreve os dados. Ele não cria banco nem altera o site.
 
@@ -23,6 +23,8 @@ Sempre que uma ação humana precisar ser identificada, também será registrado
 ## 2. Listas fechadas compartilhadas
 
 Estas opções não serão textos livres. O sistema aceitará somente valores previstos.
+
+Na tela, uma lista fechada normalmente aparece como lista suspensa, botão de seleção ou caixa de marcação. Situações internas são alteradas pelo sistema. Campos descritivos, mensagens, observações e motivos continuam como texto livre. Quando houver a opção **Outra**, o detalhamento informado não passa automaticamente a integrar a lista oficial.
 
 ### Perfil comercial da empresa
 
@@ -62,10 +64,24 @@ Estas opções não serão textos livres. O sistema aceitará somente valores pr
 - `correcao_solicitada`
 - `aprovado`
 - `rejeitado`
+
+Esta lista controla somente a validação do material. Publicação pertence ao anúncio; negociação, reserva, venda parcial e esgotamento são calculados pelas quantidades e reservas.
+
+### Situação do anúncio
+
 - `publicado`
-- `em_negociacao`
-- `vendido`
+- `suspenso`
+- `retirada_solicitada`
+- `retirado`
+- `vendido_em_exibicao`
 - `arquivado`
+
+### Situação da reserva de estoque
+
+- `ativa`
+- `liberada`
+- `convertida_em_venda`
+- `expirada`
 
 ### Situação do interesse e da negociação
 
@@ -145,7 +161,6 @@ Guarda a pessoa autorizada a entrar em nome de uma empresa ou da administração
 | `nome` | texto | sim | Nome da pessoa. |
 | `email` | e-mail corporativo | sim | Identificação individual usada para entrar no sistema; deve ser única. |
 | `papel` | usuário principal, usuário comum ou administrador | sim | Definir a área e as permissões. |
-| `solicita_ser_principal` | verdadeiro ou falso | sim | Permitir que o primeiro usuário solicite a responsabilidade principal. |
 | `senha_protegida` | texto protegido | sim | Resultado seguro da senha; nunca guardar a senha legível. |
 | `situacao` | aguardando confirmação do e-mail, aguardando aprovações, ativo, rejeitado ou bloqueado | sim | Controlar a entrada de cada usuário. |
 | `email_verificado_em` | data e hora | não | Comprovar que a pessoa abriu o link enviado ao endereço cadastrado. |
@@ -161,7 +176,9 @@ Guarda a pessoa autorizada a entrar em nome de uma empresa ou da administração
 **Dono:** a empresa indicada em `empresa_id`; contas administrativas pertencem à plataforma.  
 **Observação:** uma empresa pode possuir vários usuários. Cada pessoa se cadastra com seu próprio e-mail corporativo e sua própria senha. Os e-mails em cópia recebem notificações, mas não ganham acesso automaticamente sem um cadastro de usuário.
 
-**Regra do primeiro usuário:** quando a empresa ainda não possui um usuário principal, a primeira pessoa pode marcar que deseja assumir essa função. Ela confirma o próprio e-mail pelo link recebido e depende apenas da aprovação do Administrador da Global Shared Stock. Depois da aprovação, passa a ser o usuário principal da empresa.
+**Regra do primeiro usuário:** a primeira pessoa aprovada torna-se obrigatoriamente o usuário principal. A empresa nunca pode ficar sem um responsável principal.
+
+**Transferência:** a transferência normal exige solicitação do responsável atual, confirmação do novo responsável ativo e aprovação administrativa. Em situação excepcional, o Administrador pode realizar a transferência sem a participação do responsável anterior, com motivo e histórico obrigatórios.
 
 **Regra dos demais usuários:** depois que a empresa possui um usuário principal, cada novo usuário depende de três confirmações: validação do e-mail pelo link recebido, aprovação do usuário principal da empresa e aprovação do Administrador da Global Shared Stock. Enquanto qualquer uma estiver pendente, o acesso permanece bloqueado e o sistema informa o que falta.
 
@@ -217,13 +234,17 @@ Guarda o item oferecido pela empresa vendedora.
 | `classificacao` | lista controlada | sim | Categoria de pesquisa. |
 | `outra_classificacao` | texto | não | Usado apenas se a opção for “outra”. |
 | `condicao` | lista fechada | sim | Novo, usado, recondicionado ou sucata. |
-| `quantidade` | número maior que zero | sim | Estoque oferecido. |
+| `quantidade_atual` | número maior ou igual a zero | sim | Estoque atual oferecido antes de descontar reservas e vendas. |
+| `quantidade_reservada` | número calculado | sim | Soma das reservas ativas; não é digitada manualmente. |
+| `quantidade_vendida` | número calculado | sim | Soma das reservas convertidas em venda. |
+| `quantidade_disponivel` | número calculado | sim | Quantidade atual menos reservada e vendida; nunca pode ser negativa. |
+| `local_estoque_id` | identificador | sim | Local reutilizável onde o material está disponível. |
 | `unidade` | lista fechada | sim | Unidade de medida. |
 | `outra_unidade` | texto | não | Usado apenas se a unidade for “outra”. |
 | `preco_unitario_centavos` | número inteiro | sim | Preço em dólar, guardado em centavos para evitar erro de arredondamento. |
 | `descricao_complementar` | texto | não | Informações técnicas e comerciais adicionais. |
 | `possui_certificado` | verdadeiro ou falso | sim | Indicar a existência de certificado. |
-| `situacao` | lista fechada | sim | Etapa do material. |
+| `situacao_validacao` | lista fechada | sim | Rascunho, análise, correção, rejeição ou aprovação. |
 | `motivo_rejeicao` | texto | não | Explicação administrativa. |
 | `criado_em` | data e hora | sim | Momento da inclusão. |
 | `enviado_para_analise_em` | data e hora | não | Momento do envio. |
@@ -263,7 +284,9 @@ Guarda fotografias e certificado vinculados ao material.
 | `material_id` | identificador | sim | Material de origem. |
 | `empresa_vendedora_id` | identificador | sim | Proprietária, mantida oculta do público. |
 | `usuario_id` | identificador | sim | Administrador responsável pela publicação ou última alteração. |
-| `situacao` | lista: publicado, vendido em exibição ou removido | sim | Controlar a vitrine. |
+| `situacao` | lista fechada de situação do anúncio | sim | Controlar somente a visibilidade na vitrine. |
+| `versao_material_publicada_id` | identificador | sim | Fotografia imutável da versão aprovada que está visível. |
+| `regra_comissao_versao_id` | identificador | sim | Regra de comissão vinculada no momento da publicação. |
 | `publicado_em` | data e hora | sim | Início da publicação. |
 | `vendido_em` | data e hora | não | Momento da venda. |
 | `remover_da_vitrine_em` | data e hora | não | Cinco dias após a venda. |
@@ -271,7 +294,9 @@ Guarda fotografias e certificado vinculados ao material.
 **Dono:** empresa vendedora.  
 **Visibilidade pública:** fotos, descrição, condição e disponibilidade. Preço somente para empresa compradora aprovada e conectada. Identidade do vendedor permanece oculta até a comissão estar garantida.
 
-**Regra de conclusão:** somente o Administrador da Global Shared Stock determina o encerramento da negociação e marca o material como vendido. Essa decisão não depende de uma confirmação posterior do comprador ou do vendedor. Depois da marcação, o anúncio permanece visível por cinco dias com a indicação “Vendido” e, em seguida, é retirado da vitrine.
+**Regra de publicação:** uma única operação administrativa aprova o material, cria o anúncio e o publica. Se qualquer parte falhar, toda a operação falha.
+
+**Regra de conclusão:** venda parcial reduz o saldo e mantém o anúncio publicado. Somente quando o saldo remanescente for zero o anúncio passa para `vendido_em_exibicao`, permanece visível por cinco dias e depois é arquivado.
 
 ### 3.7 INTERESSE
 
@@ -401,7 +426,10 @@ Guarda a versão imutável de cada Termo Geral ou Termo Específico.
 | `valor_comissao_centavos` | número inteiro | no termo específico do vendedor | Registrar a comissão daquela negociação. |
 | `resumo_condicoes` | texto estruturado | nos termos específicos | Registrar material, quantidade, preço, prazo, pagamento, retirada e documentação acordados. |
 | `gerado_em` | data e hora | sim | Momento em que a versão foi criada. |
-| `substituido_em` | data e hora | não | Indicar que uma versão geral posterior passou a valer para novos cadastros. |
+| `substituido_em` | data e hora | não | Indicar a publicação de uma versão posterior. |
+| `exige_novo_aceite` | verdadeiro ou falso | sim | Distinguir revisão relevante de ajuste apenas editorial. |
+| `inicio_vigencia` | data e hora | sim | Momento a partir do qual a versão é aplicável. |
+| `prazo_novo_aceite_em` | data e hora | não | Prazo concedido às empresas já cadastradas. |
 
 **Dono:** plataforma, com o `usuario_id` do Administrador responsável.  
 **Regra:** um documento aceito não pode ter seu conteúdo alterado. Qualquer mudança gera uma nova versão.
@@ -444,7 +472,8 @@ Registra a garantia da comissão após o acordo.
 | `quantidade_acordada` | número | sim | Quantidade usada no cálculo. |
 | `preco_unitario_centavos` | número inteiro | sim | Preço acordado. |
 | `valor_total_centavos` | número inteiro | sim | Quantidade multiplicada pelo preço. |
-| `percentual_comissao` | número decimal | sim | 10% na primeira versão. |
+| `regra_comissao_versao_id` | identificador | sim | Fonte administrativa versionada usada no cálculo. |
+| `percentual_comissao` | número decimal | sim | Cópia imutável do percentual aplicado. |
 | `valor_comissao_centavos` | número inteiro | sim | Comissão calculada pelo servidor. |
 | `liquido_vendedor_centavos` | número inteiro | sim | Total menos comissão. |
 | `situacao` | em análise, correção solicitada, aprovada ou rejeitada | sim | Decisão administrativa. |
@@ -493,6 +522,186 @@ Preserva todas as mudanças importantes para auditoria.
 **Dono:** empresa relacionada ou plataforma, conforme a entidade.  
 **Regra:** histórico não é editado nem apagado pelo usuário comum.
 
+### 3.17 CONTATO_COMERCIAL
+
+Guarda contatos reutilizáveis da empresa, separados do usuário de acesso.
+
+| Campo | Tipo | Obrigatório | Finalidade |
+|---|---|---:|---|
+| `id` | identificador único | sim | Identificar o contato. |
+| `empresa_id` | identificador | sim | Empresa proprietária. |
+| `usuario_id` | identificador | sim | Pessoa que criou ou atualizou. |
+| `nome` | texto | sim | Nome do contato comercial. |
+| `cargo` | texto | sim | Função profissional. |
+| `email` | e-mail | sim | E-mail liberável após formalização. |
+| `telefone` | texto validado | não | Telefone comercial. |
+| `whatsapp` | texto validado | não | Número de WhatsApp, quando aplicável. |
+| `preferencia_contato` | lista fechada | sim | Canal preferencial: e-mail, telefone ou WhatsApp. |
+| `principal` | verdadeiro ou falso | sim | Identificar contato padrão. |
+| `situacao` | ativo, inativo ou aguardando validação | sim | Controlar utilização. |
+| `criado_em` | data e hora | sim | Auditoria. |
+
+**Visibilidade:** empresa dona e Administrador antes da comissão; contraparte somente após liberação formal.
+
+### 3.18 LOCAL_ESTOQUE
+
+Guarda endereços reutilizáveis nos cadastros de materiais.
+
+| Campo | Tipo | Obrigatório | Finalidade |
+|---|---|---:|---|
+| `id` | identificador único | sim | Identificar o local. |
+| `empresa_id` | identificador | sim | Empresa proprietária. |
+| `usuario_id` | identificador | sim | Pessoa responsável. |
+| `nome_local` | texto | sim | Nome interno da unidade ou depósito. |
+| `pais` | lista controlada | sim | Informação exibível antes da formalização. |
+| `estado` | lista controlada | sim | Informação exibível antes da formalização. |
+| `cidade` | texto | sim | Dado protegido. |
+| `cep` | texto | sim | Dado protegido. |
+| `bairro` | texto | sim | Dado protegido. |
+| `logradouro` | texto | sim | Dado protegido. |
+| `numero` | texto | sim | Dado protegido. |
+| `complemento` | texto | não | Dado protegido. |
+| `referencia_retirada` | texto | não | Orientação protegida. |
+| `restricoes_acesso` | texto | não | Horário, veículo, segurança ou agendamento. |
+| `recursos_carregamento` | texto | não | Empilhadeira, guindaste ou outros recursos. |
+| `padrao_novos_materiais` | verdadeiro ou falso | sim | Preencher automaticamente novos cadastros. |
+| `situacao` | ativo, inativo ou aguardando validação | sim | Controlar uso. |
+| `criado_em` | data e hora | sim | Auditoria. |
+
+**Visibilidade:** antes da comissão, somente país e estado; dados completos somente para a empresa dona, Administrador e partes após a liberação.
+
+### 3.19 RESERVA_ESTOQUE
+
+Vincula quantidade imobilizada a uma negociação específica.
+
+| Campo | Tipo | Obrigatório | Finalidade |
+|---|---|---:|---|
+| `id` | identificador único | sim | Identificar a reserva. |
+| `material_id` | identificador | sim | Material reservado. |
+| `interesse_id` | identificador | sim | Negociação responsável. |
+| `empresa_id` | identificador | sim | Empresa vendedora dona do estoque. |
+| `usuario_id` | identificador | sim | Pessoa ou Administrador responsável pelo evento. |
+| `quantidade` | número maior que zero | sim | Quantidade reservada. |
+| `situacao` | lista fechada | sim | Ativa, liberada, convertida em venda ou expirada. |
+| `criada_em` | data e hora | sim | Início da reserva. |
+| `atualizada_em` | data e hora | não | Ajuste da quantidade. |
+| `liberada_ou_convertida_em` | data e hora | não | Encerramento. |
+| `motivo` | texto | não | Explicar liberação, expiração ou conversão. |
+
+**Regra:** criação ou aumento da reserva e redução do saldo disponível acontecem na mesma operação segura. Interesse inicial não cria reserva.
+
+### 3.20 SOLICITACAO_ALTERACAO_ANUNCIO
+
+Guarda alteração, suspensão ou retirada solicitada pelo vendedor.
+
+| Campo | Tipo | Obrigatório | Finalidade |
+|---|---|---:|---|
+| `id` | identificador único | sim | Identificar a solicitação. |
+| `anuncio_id` | identificador | sim | Anúncio atual. |
+| `material_id` | identificador | sim | Material relacionado. |
+| `empresa_id` | identificador | sim | Empresa vendedora. |
+| `usuario_id` | identificador | sim | Solicitante. |
+| `tipo` | alteração, suspensão ou retirada | sim | Ação solicitada. |
+| `dados_propostos` | texto estruturado | não | Nova versão dos campos e arquivos. |
+| `motivo` | texto | sim | Justificativa do vendedor. |
+| `situacao` | aguardando análise, correção solicitada, aprovada, rejeitada ou cancelada | sim | Fluxo administrativo. |
+| `administrador_id` | identificador | não | Responsável pela decisão. |
+| `decidida_em` | data e hora | não | Momento da decisão. |
+
+**Regra:** aprovação de alteração substitui a versão pública em uma operação de republicação; histórico anterior permanece imutável.
+
+### 3.21 SOLICITACAO_ALTERACAO_PERFIL
+
+| Campo | Tipo | Obrigatório | Finalidade |
+|---|---|---:|---|
+| `id` | identificador único | sim | Identificar a solicitação. |
+| `empresa_id` | identificador | sim | Empresa solicitante. |
+| `usuario_id` | identificador | sim | Usuário principal solicitante. |
+| `perfil_anterior` | lista fechada | sim | Perfil vigente. |
+| `perfil_solicitado` | lista fechada | sim | Perfil pretendido. |
+| `motivo` | texto | sim | Justificativa. |
+| `situacao` | aguardando análise, correção solicitada, aprovada, rejeitada ou aguardando encerramentos | sim | Controle do fluxo. |
+| `administrador_id` | identificador | não | Responsável pela decisão. |
+| `decidida_em` | data e hora | não | Momento da decisão. |
+
+### 3.22 TRANSFERENCIA_USUARIO_PRINCIPAL
+
+| Campo | Tipo | Obrigatório | Finalidade |
+|---|---|---:|---|
+| `id` | identificador único | sim | Identificar a transferência. |
+| `empresa_id` | identificador | sim | Empresa afetada. |
+| `usuario_id` | identificador | sim | Pessoa responsável pela gravação da transferência. |
+| `usuario_principal_anterior_id` | identificador | sim | Responsável anterior. |
+| `novo_usuario_principal_id` | identificador | sim | Novo responsável ativo. |
+| `solicitante_usuario_id` | identificador | não em exceção administrativa | Pessoa que iniciou. |
+| `novo_responsavel_confirmou_em` | data e hora | não em exceção administrativa | Confirmação do novo responsável. |
+| `administrador_id` | identificador | sim | Administrador que aprovou ou executou. |
+| `excepcional` | verdadeiro ou falso | sim | Indicar ausência do responsável anterior. |
+| `motivo` | texto | obrigatório em exceção | Fundamentação. |
+| `concluida_em` | data e hora | sim | Momento da troca. |
+
+### 3.23 REGRA_COMISSAO
+
+Configuração administrativa oficial e versionada.
+
+| Campo | Tipo | Obrigatório | Finalidade |
+|---|---|---:|---|
+| `id` | identificador único | sim | Identificar a regra. |
+| `usuario_id` | identificador | sim | Administrador responsável. |
+| `tipo` | geral, empresa, categoria, faixa de valor, empresa e categoria ou exceção | sim | Escopo. |
+| `empresa_id` | identificador | conforme o tipo | Empresa específica. |
+| `interesse_id` | identificador | apenas na exceção | Negociação específica que recebe a exceção. |
+| `categoria_material` | lista controlada | conforme o tipo | Categoria específica. |
+| `valor_minimo_centavos` | número inteiro | não | Início da faixa. |
+| `valor_maximo_centavos` | número inteiro | não | Fim da faixa. |
+| `percentual` | número decimal | sim | Percentual aplicável. |
+| `prioridade` | número inteiro | sim | Resolver concorrência entre regras. |
+| `versao` | número inteiro | sim | Preservar histórico. |
+| `inicio_vigencia` | data e hora | sim | Início. |
+| `fim_vigencia` | data e hora | não | Encerramento sem apagar. |
+| `motivo` | texto | sim | Justificativa administrativa. |
+
+**Prioridade:** exceção da operação; empresa e categoria; empresa; categoria; faixa de valor; regra geral. Somente uma regra é aplicada.
+
+### 3.24 LIBERACAO_CONTATO
+
+Preserva a fotografia dos dados compartilhados depois da garantia da comissão.
+
+| Campo | Tipo | Obrigatório | Finalidade |
+|---|---|---:|---|
+| `id` | identificador único | sim | Identificar a liberação. |
+| `interesse_id` | identificador | sim | Negociação. |
+| `empresa_id` | identificador | sim | Empresa relacionada. |
+| `usuario_id` | identificador | sim | Administrador responsável. |
+| `contato_snapshot` | texto estruturado | sim | Contato vigente no momento. |
+| `local_snapshot` | texto estruturado | sim | Endereço e orientações vigentes. |
+| `liberado_para_empresa_id` | identificador | sim | Destinatária. |
+| `liberado_em` | data e hora | sim | Momento da liberação. |
+
+**Dono:** negociação e empresas participantes.
+
+**Regra:** criado somente depois da aprovação da Ordem de Compra da comissão e preservado mesmo que os cadastros originais mudem.
+
+### 3.25 VERSAO_MATERIAL
+
+Preserva a fotografia dos dados e documentos que o Administrador aprovou e publicou em determinado momento.
+
+| Campo | Tipo | Obrigatório | Finalidade |
+|---|---|---:|---|
+| `id` | identificador único | sim | Identificar a versão. |
+| `material_id` | identificador | sim | Material de origem. |
+| `empresa_id` | identificador | sim | Empresa vendedora proprietária. |
+| `usuario_id` | identificador | sim | Administrador responsável pela aprovação e publicação. |
+| `numero_versao` | número inteiro | sim | Ordenar as versões do material. |
+| `dados_publicados` | texto estruturado | sim | Cópia imutável dos campos técnicos, comerciais e do local público. |
+| `arquivos_publicados` | texto estruturado | sim | Cópia das referências das fotos e dos documentos aprovados. |
+| `solicitacao_alteracao_id` | identificador | não | Solicitação que originou a nova versão. |
+| `criada_em` | data e hora | sim | Momento da publicação. |
+
+**Dono:** empresa vendedora indicada por `empresa_id`.
+
+**Regra:** uma nova publicação cria outra versão; nunca substitui nem apaga a versão usada por negociação anterior.
+
 ## 4. Estrutura futura da inteligência artificial
 
 A IA prevista no `ESPEC.md` lerá uma planilha `.xlsx` de estoque e sugerirá materiais padronizados. Ela não publicará nem salvará um anúncio sem conferência humana.
@@ -534,10 +743,14 @@ A IA prevista no `ESPEC.md` lerá uma planilha `.xlsx` de estoque e sugerirá ma
 ## 5. Relacionamentos
 
 - Uma **empresa** possui um ou mais **usuários**.
+- Cada empresa possui exatamente um usuário principal ativo e pode possuir vários usuários adicionais.
+- Uma empresa possui contatos comerciais e locais de estoque reutilizáveis.
 - Uma **empresa** possui documentos cadastrais.
 - Uma empresa vendedora possui muitos **materiais**.
 - Um material possui até seis fotos e até um certificado.
-- Um material aprovado origina um **anúncio**.
+- A operação administrativa **Aprovar e publicar** aprova o material, cria o anúncio e o publica de forma indivisível.
+- Um material pode possuir várias reservas, cada uma vinculada a uma negociação.
+- Venda parcial converte somente a reserva daquela negociação e mantém o anúncio quando houver saldo.
 - Um anúncio pode receber muitos **interesses**, inclusive de empresas compradoras diferentes.
 - Cada interesse liga uma empresa compradora a uma empresa vendedora e passa a representar uma negociação.
 - Uma negociação pode ter várias respostas, decisões, mensagens, correções e notificações.
@@ -548,6 +761,11 @@ A IA prevista no `ESPEC.md` lerá uma planilha `.xlsx` de estoque e sugerirá ma
 - Uma negociação possui uma Ordem de Compra vigente e pode preservar versões anteriores quando houver correção.
 - Somente depois dos dois aceites específicos o vendedor pode enviar a Ordem de Compra.
 - Uma Ordem de Compra aprovada garante a comissão e autoriza a liberação dos contatos.
+- A liberação preserva uma cópia do contato e do local compartilhados.
+- Um anúncio pode ter solicitações de alteração, suspensão ou retirada sem apagar versões anteriores.
+- Um material pode possuir várias versões publicadas, e cada anúncio aponta para a versão que está visível.
+- Uma empresa pode solicitar alteração de perfil comercial, condicionada a Termos e operações ativas.
+- Cada anúncio referencia uma versão da regra de comissão; a negociação preserva percentual e valores aplicados.
 - Uma importação futura de planilha possui vários materiais sugeridos pela IA.
 
 ## 6. Regras de visibilidade
@@ -555,6 +773,8 @@ A IA prevista no `ESPEC.md` lerá uma planilha `.xlsx` de estoque e sugerirá ma
 | Informação | Visitante | Comprador relacionado | Vendedor relacionado | Administrador |
 |---|---:|---:|---:|---:|
 | Fotos, descrição, condição e disponibilidade do anúncio | sim | sim | sim | sim |
+| País e estado do local do material | sim | sim | sim | sim |
+| Cidade, endereço completo e contato antes da garantia | não | não | própria empresa | sim |
 | Preço do anúncio | não | sim, se aprovado | sim, se for o dono | sim |
 | Identidade e contato do vendedor antes da garantia | não | não | própria empresa | sim |
 | Identidade e contato do comprador antes da garantia | não | própria empresa | não | sim |
@@ -569,8 +789,14 @@ A IA prevista no `ESPEC.md` lerá uma planilha `.xlsx` de estoque e sugerirá ma
 ## 7. Travas essenciais
 
 - Nenhuma quantidade pode ser zero ou negativa quando houver disponibilidade.
+- Quantidade disponível é calculada como quantidade atual menos reservas ativas e vendas concluídas.
+- Reserva e verificação de saldo ocorrem juntas; duas negociações não podem consumir a mesma quantidade.
+- Redução de estoque não pode ficar abaixo da soma reservada e vendida.
 - Valores monetários são guardados como números inteiros em centavos de dólar.
-- O preço informado pelo vendedor já inclui a comissão de 10%; o servidor calcula comissão e valor líquido.
+- O preço informado pelo vendedor inclui a comissão da regra versionada aplicável; o servidor calcula comissão e valor líquido.
+- Mudança de regra de comissão não altera retroativamente anúncio ou negociação vinculados a versão anterior.
+- Nova versão relevante dos Termos Gerais bloqueia novas operações do papel afetado até novo aceite do usuário principal.
+- Empresa nunca pode ficar sem usuário principal.
 - Dois toques no botão não podem criar dois registros.
 - Nenhuma tela pode confirmar sucesso antes de o servidor confirmar a gravação.
 - Telefone, e-mail e links são bloqueados nas mensagens antes da liberação formal dos contatos.

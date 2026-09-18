@@ -1,6 +1,6 @@
 # ARQUITETURA — GLOBAL SHARED STOCK
 
-Versão de planejamento: 0.1  
+Versão de planejamento: 0.3
 Etapa: Dia 3 do Desafio dos 10 Dias  
 Este documento define onde cada parte do sistema funcionará. Ele não cria banco, integração, chave, pasta técnica nem altera o site.
 
@@ -75,13 +75,15 @@ Depois dessa confirmação, o sistema verificará a **autorização**, que signi
 - a situação da empresa e do próprio usuário;
 - as aprovações exigidas para aquele acesso.
 
-O primeiro usuário de uma empresa poderá solicitar a função de usuário principal. Seu acesso dependerá da confirmação do e-mail e da aprovação do Administrador. Os usuários seguintes dependerão da confirmação do e-mail, da aprovação do usuário principal e da aprovação do Administrador.
+O primeiro usuário aprovado de uma empresa será obrigatoriamente seu usuário principal. Seu acesso dependerá da confirmação do e-mail e da aprovação do Administrador. Os usuários seguintes dependerão da confirmação do e-mail, da aprovação do usuário principal e da aprovação do Administrador.
+
+A troca do usuário principal será uma operação protegida e registrada. No fluxo comum, o principal atual solicita, o novo principal confirma e o Administrador aprova. Excepcionalmente, o Administrador poderá efetuar a troca sem a participação do principal anterior, desde que informe o motivo. A empresa nunca poderá ficar sem um usuário principal.
 
 Antes de enviar o cadastro, a empresa aceitará os Termos Gerais correspondentes ao seu perfil comercial. A empresa vendedora aceitará o Termo Geral do Vendedor, a compradora aceitará o Termo Geral do Comprador e a empresa com perfil duplo aceitará os dois.
 
 ### 4.2 Banco de dados
 
-O banco guardará as informações descritas no `MODELO.md`, incluindo empresas, usuários, materiais, anúncios, interesses, negociações, mensagens, aceites, ordens de compra, notificações e históricos.
+O banco guardará as informações descritas no `MODELO.md`, incluindo empresas, usuários, contatos comerciais, locais de estoque, materiais, versões publicadas, anúncios, interesses, negociações, reservas de estoque, mensagens, aceites, ordens de compra, regras de comissão, solicitações de alteração, notificações e históricos.
 
 Cada registro nascerá com:
 
@@ -119,6 +121,11 @@ Elas serão usadas quando uma operação precisar de:
 - registro seguro de uma decisão importante;
 - geração de versões imutáveis dos Termos Específicos de cada negociação;
 - verificação adicional antes de liberar contatos ou arquivos.
+- reserva, liberação e baixa de estoque sem permitir que duas negociações consumam a mesma quantidade;
+- aprovação do material, criação do anúncio e publicação em uma única operação;
+- aplicação da versão correta da regra de comissão;
+- transferência do usuário principal e alteração do perfil comercial;
+- aprovação de alterações, suspensão ou retirada de anúncios publicados.
 
 A função recebe a solicitação, confirma a identidade e a permissão, executa somente a tarefa autorizada e devolve uma resposta limitada. Se não conseguir confirmar a permissão, ela bloqueia a operação e informa o motivo permitido, sem revelar informações sigilosas.
 
@@ -145,6 +152,7 @@ A chave secreta pode executar ações elevadas e até ultrapassar proteções co
 ### Visitante
 
 - acessa somente as informações públicas;
+- visualiza apenas o país e o estado do material, nunca a cidade, o endereço completo ou os contatos;
 - não recebe preço reservado, identidade das empresas, documentos privados ou histórico de negociação;
 - é convidado a cadastrar sua empresa quando tenta acessar recurso protegido.
 
@@ -159,6 +167,9 @@ A chave secreta pode executar ações elevadas e até ultrapassar proteções co
 ### Empresa vendedora
 
 - acessa os próprios usuários, materiais, arquivos, propostas e negociações;
+- cadastra contatos comerciais e locais de estoque reutilizáveis, podendo escolher um local padrão para novos materiais;
+- acompanha as quantidades total, reservada, vendida e disponível de cada material;
+- solicita alteração, suspensão ou retirada de anúncio publicado, sujeita à análise administrativa;
 - aceita o Termo Geral do Vendedor no cadastro e o Termo Específico do Vendedor em cada venda;
 - não recebe a identidade nem o contato do comprador antes da garantia da comissão;
 - envia a Ordem de Compra da comissão somente depois dos dois aceites específicos.
@@ -166,10 +177,12 @@ A chave secreta pode executar ações elevadas e até ultrapassar proteções co
 ### Administrador
 
 - acessa os registros necessários para validação e intermediação;
-- aprova empresas, usuários, materiais, interesses e documentos conforme a etapa;
+- aprova empresas, usuários, materiais, interesses, documentos e solicitações de alteração conforme a etapa;
+- mantém as regras versionadas de comissão e acompanha qual versão foi aplicada em cada negociação;
+- controla transferências de usuário principal e alterações do perfil comercial;
 - consulta as versões e os aceites dos quatro tipos de Termos;
 - libera os contatos somente depois da garantia da comissão;
-- determina o encerramento da negociação e marca o material como vendido;
+- determina o encerramento da negociação, converte a reserva em quantidade vendida e mantém publicado o saldo remanescente;
 - tem suas ações registradas no histórico.
 
 O papel de Administrador não será decidido por um valor enviado pelo navegador. A permissão será confirmada em ambiente protegido.
@@ -245,7 +258,30 @@ O vendedor abrirá e aceitará seu documento; o comprador fará o mesmo com o do
 
 Se uma condição comercial mudar depois da geração, os documentos anteriores serão preservados, novas versões serão geradas e os dois aceites deverão ser realizados novamente. O Administrador poderá consultar ambos os documentos e seus históricos.
 
-### 8.5 Futura leitura de planilha pela IA
+Quando uma nova versão relevante de um Termo Geral entrar em vigor, o usuário principal deverá aceitá-la em nome da empresa. A empresa continuará acessando seu histórico, mas não poderá iniciar as novas operações afetadas até concluir o novo aceite. Uma alteração apenas editorial poderá ser marcada pelo Administrador como dispensada de novo aceite. O prazo de adaptação será configurado pelo Administrador.
+
+### 8.5 Operações indivisíveis de publicação e estoque
+
+A aprovação do material, a criação do anúncio e sua publicação formarão uma única operação. Ou todas as etapas serão concluídas, ou nenhuma delas será registrada. Isso evita material aprovado sem anúncio correspondente ou anúncio incompleto.
+
+O interesse inicial não reserva estoque. A reserva nasce somente depois que o vendedor confirma a quantidade e o Administrador valida a negociação. Essa gravação verificará novamente o saldo disponível no mesmo instante, impedindo que duas negociações reservem a mesma quantidade.
+
+Quando uma negociação terminar:
+
+- rejeição, cancelamento ou expiração devolvem a quantidade reservada ao saldo disponível;
+- venda concluída converte a reserva em quantidade vendida;
+- venda parcial reduz o saldo e mantém o anúncio publicado;
+- saldo igual a zero encerra o anúncio, que permanece visível com a indicação de vendido durante cinco dias antes de ser arquivado.
+
+### 8.6 Comissão, contatos e localização
+
+A regra oficial de comissão ficará em configuração protegida e visível somente ao Administrador. Cada versão terá período de vigência e poderá definir a taxa geral, por empresa, categoria, faixa de valor, combinação de empresa e categoria ou exceção específica da operação. Somente uma regra será aplicada, obedecendo à prioridade definida no `MODELO.md`.
+
+O anúncio será ligado à versão da regra aplicável. Uma mudança posterior não alterará silenciosamente anúncios e negociações em andamento. Os Termos Específicos e a Ordem de Compra guardarão uma cópia imutável do percentual e do valor efetivamente aplicados.
+
+Antes da garantia da comissão, comprador e vendedor verão somente país e estado do material. Depois da validação da Ordem de Compra da comissão, a função protegida registrará e liberará às duas partes os contatos comerciais autorizados, a cidade, o endereço completo e as instruções de retirada. Essa cópia permanecerá no histórico da transação mesmo que o cadastro original seja alterado depois.
+
+### 8.7 Futura leitura de planilha pela IA
 
 ```text
 Empresa envia a planilha de estoque
@@ -325,11 +361,21 @@ A migração de KV e R2 não acontecerá no Dia 3. Antes dela, os dados existent
 - Supabase para acesso, banco e armazenamento privado definitivo;
 - funções protegidas do Supabase para segredos e futura integração com IA;
 - uma empresa pode possuir vários usuários individuais;
+- o primeiro usuário aprovado é obrigatoriamente o principal, e toda transferência posterior é confirmada e auditada;
+- contatos comerciais e locais de estoque podem ser reutilizados, com um local padrão para novos materiais;
 - empresa vendedora aceita seu Termo Geral no cadastro;
 - empresa compradora aceita seu Termo Geral no cadastro;
 - empresa com perfil duplo aceita os dois Termos Gerais;
+- versões gerais relevantes exigem novo aceite do usuário principal antes de novas operações afetadas;
 - depois do acordo, vendedor e comprador aceitam seus respectivos Termos Específicos;
 - a Ordem de Compra só pode ser enviada após os dois aceites específicos;
+- a aprovação do material cria e publica o anúncio em uma única operação administrativa;
+- o estoque é reservado somente após confirmação do vendedor e validação do Administrador;
+- vendas parciais reduzem o saldo, sem encerrar automaticamente o anúncio;
+- alterações e retiradas de anúncios publicados dependem de solicitação da empresa e decisão administrativa;
+- a mudança do perfil comercial depende de solicitação, aceite dos Termos aplicáveis e aprovação administrativa;
+- a comissão utiliza regras protegidas e versionadas, sem alteração retroativa silenciosa;
+- cidade, endereço e contatos são liberados somente depois da garantia da comissão;
 - cada dado nasce com proprietário e pessoa responsável;
 - Administrador e usuário principal participam das aprovações definidas no `MODELO.md`;
 - nenhum segredo é enviado ao navegador;
