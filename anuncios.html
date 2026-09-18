@@ -245,6 +245,9 @@
         const unit = advertisement.unit === "other" ? advertisement.otherUnit : unitLabels[advertisement.unit];
         details.textContent = `${conditionLabels[advertisement.condition]} · ${quantityNumber.format(advertisement.quantity)} ${unit}`;
         if (advertisement.eligibility.allowed && advertisement.hasCertificate) details.textContent += " · Possui certificado";
+        const location = document.createElement("p");
+        location.className = "details";
+        location.textContent = advertisement.publicLocation ? `Localização: ${advertisement.publicLocation.state}, ${advertisement.publicLocation.country}` : "Localização não informada";
         const price = document.createElement("strong");
         price.className = "price";
         price.textContent = Number.isInteger(advertisement.unitPriceCents) ? `US$ ${americanNumber.format(advertisement.unitPriceCents / 100)}` : "Preço disponível para empresas cadastradas.";
@@ -256,7 +259,7 @@
         message.className = "block-message";
         message.hidden = true;
         interest.addEventListener("click", () => showEligibility(advertisement, message));
-        content.append(category, title, identification, details, price, interest, message);
+        content.append(category, title, identification, details, location, price, interest, message);
         item.append(photoWrap, content);
         return item;
       }

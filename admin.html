@@ -885,6 +885,11 @@
         addDetail(details, "Classificação", [category, subcategory, type].filter(Boolean).join(" › "));
         addDetail(details, "Condição", conditionLabels[material.condition]);
         addDetail(details, "Quantidade", `${material.quantity} ${unit || ""}`.trim());
+        if (material.stockLocation) {
+          const address = material.stockLocation.protectedAddress || {};
+          addDetail(details, "Local de estoque", `${material.stockLocation.name} · ${material.stockLocation.state}, ${material.stockLocation.country}`);
+          addDetail(details, "Endereço protegido", `${address.street}, ${address.number}${address.complement ? ` · ${address.complement}` : ""} · ${address.neighborhood} · ${address.city} · CEP ${address.postalCode}`);
+        }
         addDetail(details, "Preço final unitário", money.format(material.unitPriceCents / 100));
         addDetail(details, "Comissão total", money.format(material.totalCommissionCents / 100));
         addDetail(details, "Líquido do vendedor", money.format(material.totalNetCents / 100));

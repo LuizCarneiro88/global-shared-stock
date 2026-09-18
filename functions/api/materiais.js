@@ -19,7 +19,8 @@ export async function onRequestGet(context) {
     const companiesById = new Map(companies.filter(Boolean).map((company) => [company.id, company]));
     const result = materials.map((material) => {
       const company = companiesById.get(material.companyId);
-      return { ...material, companyName: company?.companyName || "Empresa não encontrada", companyEmail: company?.primaryEmail || "" };
+      const stockLocation = (company?.stockLocations || []).find((location) => location.id === material.stockLocationId);
+      return { ...material, companyName: company?.companyName || "Empresa não encontrada", companyEmail: company?.primaryEmail || "", stockLocation: stockLocation || null };
     });
     result.sort((first, second) => second.submittedAt.localeCompare(first.submittedAt));
     return Response.json({ materials: result }, { headers: { "Cache-Control": "no-store" } });

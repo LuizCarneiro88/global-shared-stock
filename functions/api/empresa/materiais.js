@@ -15,7 +15,7 @@ function cleanText(value, maximumLength) {
   return typeof value === "string" ? value.trim().slice(0, maximumLength) : "";
 }
 
-function normalizedMaterial(input, manifest) {
+function normalizedMaterial(input, manifest, stockLocations) {
   const quantity = Number(input.quantity);
   const unitPriceCents = Number(input.unitPriceCents);
   if (!UUID_PATTERN.test(input.id || "")) throw new Error("Identificação de material inválida.");
@@ -50,6 +50,8 @@ function normalizedMaterial(input, manifest) {
     throw new Error("Informe uma quantidade maior que zero, com até três casas decimais.");
   }
   if (!Number.isInteger(unitPriceCents) || unitPriceCents <= 0) throw new Error("Informe um preço maior que zero.");
+  const stockLocation = stockLocations.find((location) => location.id === input.stockLocationId && location.status !== "inactive");
+  if (!stockLocation) throw new Error("Selecione um local de estoque válido.");
 
   const requestedFileIds = Array.isArray(input.files) ? [...new Set(input.files.map((file) => file?.id).filter(Boolean))] : [];
   const files = requestedFileIds.map((id) => manifest.find((file) => file.id === id)).filter(Boolean);
@@ -71,6 +73,8 @@ function normalizedMaterial(input, manifest) {
     partNumber: cleanText(input.partNumber ?? input.code, 100),
     manufacturer: cleanText(input.manufacturer, 150),
     description: cleanText(input.description, 1000),
+    stockLocationId: stockLocation.id,
+    publicLocation: { name: stockLocation.name, country: stockLocation.country, state: stockLocation.state },
     category,
     otherCategory: category === OTHER_CLASSIFICATION ? otherCategory : "",
     subcategory: allowedSubcategories.length ? subcategory : "",
@@ -111,13 +115,17 @@ export async function onRequestGet(context) {
     cursor = page.list_complete ? undefined : page.cursor;
   } while (cursor);
   materials.sort((first, second) => second.submittedAt.localeCompare(first.submittedAt));
-  return Response.json({ companyId: session.companyId, companyName: company.companyName, companyInterest: company.interest, materials }, { headers: { "Cache-Control": "no-store" } });
+  const stockLocations = (company.stockLocations || []).filter((location) => location.status !== "inactive").map((location) => ({ id: location.id, name: location.name, country: location.country, state: location.state, defaultForNewMaterials: Boolean(location.defaultForNewMaterials) }));
+  return Response.json({ companyId: session.companyId, companyName: company.companyName, companyInterest: company.interest, stockLocations, materials }, { headers: { "Cache-Control": "no-store" } });
 }
 
 export async function onRequestPost(context) {
   if (!context.env.CADASTROS) return error("O armazenamento ainda não está configurado.", 503);
   const session = await getSession(context.request, context.env);
   if (!session || session.role !== "company") return error("Acesso não autorizado.", 401);
+  const company = await context.env.CADASTROS.get(`cadastro:${session.companyId}:dados`, "json");
+  if (!company || company.status !== "approved") return error("A empresa precisa estar aprovada.", 403);
+  if (company.interest !== "sell" && company.interest !== "both") return error("Somente empresas vendedoras podem cadastrar materiais.", 403);
   let input;
   try { input = await context.request.json(); } catch { return error("Não foi possível ler os materiais."); }
   if (!UUID_PATTERN.test(input.requestId || "")) return error("Identificação do envio inválida. Atualize a página e tente novamente.");
@@ -130,7 +138,7 @@ export async function onRequestPost(context) {
       const manifest = await context.env.CADASTROS.get(manifestKey(session.companyId, material.id), "json") || [];
       const existing = await context.env.CADASTROS.get(`material:${session.companyId}:${material.id}`, "json");
       if (existing && existing.status !== "rejected") throw new Error("Este material já foi enviado para análise.");
-      const normalized = normalizedMaterial(material, manifest);
+      const normalized = normalizedMaterial(material, manifest, company.stockLocations || []);
       if (!existing) return normalized;
       const reviewHistory = Array.isArray(existing.reviewHistory) ? existing.reviewHistory : [];
       reviewHistory.push({ status: "rejected", reason: existing.rejectionReason, decidedAt: existing.decidedAt });

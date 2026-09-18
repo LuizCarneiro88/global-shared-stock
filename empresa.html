@@ -155,6 +155,12 @@
             <div id="material-type-field" hidden><label for="material-type">Tipo de sensor *</label><select id="material-type"><option value="">Selecione</option></select></div>
             <div id="other-material-type-field" hidden><label for="other-material-type">Outro tipo de sensor *</label><input id="other-material-type" maxlength="100" /></div>
             <div><label for="condition">Condição *</label><select id="condition" required><option value="">Selecione</option><option value="new">Novo</option><option value="used">Usado</option><option value="refurbished">Recondicionado</option><option value="scrap">Sucata</option></select></div>
+            <div class="field-wide">
+              <label for="stock-location">Local de estoque *</label>
+              <select id="stock-location" required><option value="">Carregando locais...</option></select>
+              <p id="stock-location-guidance" class="help">O local padrão será selecionado automaticamente.</p>
+              <button id="manage-stock-locations" class="secondary" type="button">Cadastrar ou consultar locais</button>
+            </div>
             <div><label for="quantity">Quantidade disponível *</label><input id="quantity" type="number" inputmode="decimal" min="0.001" step="0.001" required /></div>
             <div><label for="unit">Unidade de medida *</label><select id="unit" required><option value="">Selecione</option><option value="unit">Unidade</option><option value="lot">Lote</option><option value="kg">Quilograma</option><option value="meter">Metro</option><option value="square_meter">Metro quadrado (m²)</option><option value="cubic_meter">Metro cúbico (m³)</option><option value="liter">Litro</option><option value="other">Outro</option></select></div>
             <div id="other-unit-field" hidden><label for="other-unit">Outra unidade *</label><input id="other-unit" maxlength="30" /></div>
@@ -259,6 +265,28 @@
           <div id="company-data-content" class="company-data-grid">
             <div class="company-data-card">Carregando dados da empresa...</div>
           </div>
+          <section id="new-stock-location-panel" class="company-data-card" hidden>
+            <h3>Adicionar local de estoque</h3>
+            <form id="new-stock-location-form">
+              <div class="fields">
+                <div><label for="new-location-name">Nome do local *</label><input id="new-location-name" maxlength="120" required /></div>
+                <div><label for="new-location-country">País *</label><input id="new-location-country" maxlength="100" autocomplete="country-name" required /></div>
+                <div><label for="new-location-state">Estado *</label><input id="new-location-state" maxlength="100" autocomplete="address-level1" required /></div>
+                <div><label for="new-location-city">Cidade *</label><input id="new-location-city" maxlength="120" autocomplete="address-level2" required /></div>
+                <div><label for="new-location-postal-code">CEP *</label><input id="new-location-postal-code" maxlength="20" inputmode="numeric" autocomplete="postal-code" required /></div>
+                <div><label for="new-location-neighborhood">Bairro *</label><input id="new-location-neighborhood" maxlength="120" autocomplete="address-level3" required /></div>
+                <div><label for="new-location-street">Logradouro *</label><input id="new-location-street" maxlength="180" autocomplete="address-line1" required /></div>
+                <div><label for="new-location-number">Número *</label><input id="new-location-number" maxlength="30" required /></div>
+                <div><label for="new-location-complement">Complemento <span class="help">(opcional)</span></label><input id="new-location-complement" maxlength="120" autocomplete="address-line2" /></div>
+                <div class="field-wide"><label for="new-location-pickup-reference">Instruções de retirada <span class="help">(opcional)</span></label><textarea id="new-location-pickup-reference" maxlength="500"></textarea></div>
+                <div class="field-wide"><label for="new-location-access-restrictions">Restrições de acesso <span class="help">(opcional)</span></label><textarea id="new-location-access-restrictions" maxlength="500"></textarea></div>
+                <div class="field-wide"><label for="new-location-loading-resources">Recursos de carregamento <span class="help">(opcional)</span></label><textarea id="new-location-loading-resources" maxlength="500"></textarea></div>
+                <label class="adjustment-option field-wide" for="new-location-default"><input id="new-location-default" type="checkbox" /> Usar como padrão para novos materiais</label>
+              </div>
+              <button type="submit">Salvar local de estoque</button>
+              <p id="new-stock-location-feedback" class="message" role="status" hidden></p>
+            </form>
+          </section>
           <p class="protected-note">A transferência do usuário principal e a alteração do perfil comercial serão disponibilizadas em um fluxo próprio, com aprovação administrativa.</p>
         </section>
       </section>
@@ -293,6 +321,9 @@
       const otherUnit = document.querySelector("#other-unit");
       const quantity = document.querySelector("#quantity");
       const price = document.querySelector("#price");
+      const stockLocation = document.querySelector("#stock-location");
+      const stockLocationGuidance = document.querySelector("#stock-location-guidance");
+      const manageStockLocations = document.querySelector("#manage-stock-locations");
       const draftList = document.querySelector("#draft-list");
       const sentList = document.querySelector("#sent-list");
       const emptyDraft = document.querySelector("#empty-draft");
@@ -326,10 +357,14 @@
       const newUserForm = document.querySelector("#new-user-form");
       const newUserFeedback = document.querySelector("#new-user-feedback");
       const companyDataContent = document.querySelector("#company-data-content");
+      const newStockLocationPanel = document.querySelector("#new-stock-location-panel");
+      const newStockLocationForm = document.querySelector("#new-stock-location-form");
+      const newStockLocationFeedback = document.querySelector("#new-stock-location-feedback");
       let activeTermsReading = null;
       let loadedNegotiations = [];
       let interestsAreLoading = false;
       let companyDataLoaded = false;
+      let availableStockLocations = [];
       const workspaceTabs = [...document.querySelectorAll(".workspace-tab")];
       const workspacePanels = [...document.querySelectorAll(".workspace-tab-panel")];
       const companyProfileLabels = { buy: "Compradora", sell: "Vendedora", both: "Compradora e vendedora" };
@@ -425,6 +460,7 @@
       }
 
       function renderCompanyData(company) {
+        newStockLocationPanel.hidden = company.commercialProfile !== "sell" && company.commercialProfile !== "both";
         const cards = [
           companyDataCard("Resumo cadastral", [
             ["Empresa", company.companyName],
@@ -486,6 +522,67 @@
           companyDataContent.replaceChildren(companyDataCard("Dados indisponíveis", [["Motivo", error.message]]));
         }
       }
+
+      function renderStockLocationOptions(locations, selectedId = "") {
+        availableStockLocations = locations;
+        stockLocation.replaceChildren();
+        const placeholder = document.createElement("option");
+        placeholder.value = "";
+        placeholder.textContent = locations.length ? "Selecione" : "Cadastre um local de estoque";
+        stockLocation.append(placeholder);
+        locations.forEach((location) => {
+          const option = document.createElement("option");
+          option.value = location.id;
+          option.textContent = `${location.name} — ${location.state}, ${location.country}${location.defaultForNewMaterials ? " — padrão" : ""}`;
+          stockLocation.append(option);
+        });
+        const preferred = locations.find((location) => location.id === selectedId) || locations.find((location) => location.defaultForNewMaterials);
+        stockLocation.value = preferred?.id || "";
+        stockLocationGuidance.textContent = locations.length ? "Somente país e estado poderão aparecer antes da formalização." : "Cadastre um local na aba Dados da empresa antes de adicionar materiais.";
+      }
+
+      manageStockLocations.addEventListener("click", async () => {
+        const tab = document.querySelector("#company-data-tab");
+        openWorkspaceTab(tab);
+        if (!companyDataLoaded) await loadCompanyData();
+        newStockLocationPanel.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
+
+      newStockLocationForm.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        if (!newStockLocationForm.reportValidity()) return;
+        const button = newStockLocationForm.querySelector('button[type="submit"]');
+        button.disabled = true;
+        newStockLocationFeedback.hidden = true;
+        const value = (id) => document.querySelector(`#${id}`).value.trim();
+        try {
+          const response = await fetch("/api/empresa/locais", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Accept: "application/json" },
+            body: JSON.stringify({
+              name: value("new-location-name"), country: value("new-location-country"), state: value("new-location-state"), city: value("new-location-city"),
+              postalCode: value("new-location-postal-code"), neighborhood: value("new-location-neighborhood"), street: value("new-location-street"), number: value("new-location-number"),
+              complement: value("new-location-complement"), pickupReference: value("new-location-pickup-reference"), accessRestrictions: value("new-location-access-restrictions"), loadingResources: value("new-location-loading-resources"),
+              defaultForNewMaterials: document.querySelector("#new-location-default").checked,
+            }),
+          });
+          const result = await response.json();
+          if (!response.ok) throw new Error(result.message || "Não foi possível salvar o local de estoque.");
+          newStockLocationForm.reset();
+          companyDataLoaded = false;
+          await loadCompanyData();
+          await loadMaterials();
+          newStockLocationFeedback.textContent = "Local de estoque salvo com sucesso.";
+          newStockLocationFeedback.className = "message success";
+          newStockLocationFeedback.hidden = false;
+        } catch (error) {
+          newStockLocationFeedback.textContent = error.message;
+          newStockLocationFeedback.className = "message error";
+          newStockLocationFeedback.hidden = false;
+        } finally {
+          button.disabled = false;
+        }
+      });
 
       newUserForm.addEventListener("submit", async (event) => {
         event.preventDefault();
@@ -766,6 +863,7 @@
         currentFiles = { photos: [], certificate: null };
         coverPhotoId = "";
         form.reset();
+        renderStockLocationOptions(availableStockLocations);
         addMaterialButton.textContent = "Adicionar à lista";
         cancelEditButton.hidden = true;
         toggleCustomField(otherCategoryField, otherCategory, false);
@@ -810,6 +908,7 @@
           }
         }
         document.querySelector("#condition").value = material.condition;
+        renderStockLocationOptions(availableStockLocations, material.stockLocationId);
         quantity.value = material.quantity;
         unit.value = material.unit;
         const customUnit = material.unit === "other";
@@ -890,7 +989,10 @@
         const unitLabel = material.unit === "other" ? material.otherUnit : unitLabels[material.unit];
         const certificateLabel = material.hasCertificate ? "Com certificado" : "Sem certificado";
         values.textContent = `${material.quantity} ${unitLabel} · ${conditionLabels[material.condition]} · ${certificateLabel} · ${money.format(material.unitPriceCents / 100)} por unidade de medida · Líquido total ${money.format(material.totalNetCents / 100)}`;
-        item.append(header, description, classification, values);
+        const location = document.createElement("p");
+        const locationInformation = availableStockLocations.find((entry) => entry.id === material.stockLocationId) || material.publicLocation;
+        location.textContent = locationInformation ? `Local: ${locationInformation.name} — ${locationInformation.state}, ${locationInformation.country}` : "Local de estoque não informado";
+        item.append(header, description, classification, location, values);
         if (!removable && material.status === "rejected") {
           const rejection = document.createElement("p");
           rejection.textContent = `Motivo da rejeição: ${material.rejectionReason}`;
@@ -946,7 +1048,12 @@
         try {
           const saved = JSON.parse(localStorage.getItem(draftStorageKey) || "[]");
           if (!Array.isArray(saved)) return;
-          drafts.splice(0, drafts.length, ...saved.filter((material) => material && typeof material.id === "string").slice(0, 100));
+          const automaticLocation = availableStockLocations.find((location) => location.defaultForNewMaterials) || (availableStockLocations.length === 1 ? availableStockLocations[0] : null);
+          const restored = saved.filter((material) => material && typeof material.id === "string").slice(0, 100).map((material) => {
+            if (material.stockLocationId || !automaticLocation) return material;
+            return { ...material, stockLocationId: automaticLocation.id, publicLocation: automaticLocation };
+          });
+          drafts.splice(0, drafts.length, ...restored);
         } catch {
           try { localStorage.removeItem(draftStorageKey); } catch {}
         }
@@ -955,7 +1062,7 @@
       function renderDrafts() {
         draftList.replaceChildren(...drafts.map((material) => createCard(material, true)));
         emptyDraft.hidden = drafts.length > 0;
-        submitMaterials.disabled = drafts.length === 0;
+        submitMaterials.disabled = drafts.length === 0 || drafts.some((material) => !material.stockLocationId);
         clearDraft.disabled = drafts.length === 0;
         saveDrafts();
       }
@@ -969,6 +1076,7 @@
           document.querySelector("#active-account").textContent = result.companyName;
           document.querySelector("#active-account").title = `Empresa conectada: ${result.companyName}`;
           configureWorkspace(result.companyInterest);
+          renderStockLocationOptions(result.stockLocations || [], stockLocation.value);
           draftStorageKey = `global-shared-stock:rascunho:${result.companyId}`;
           restoreDrafts();
           renderDrafts();
@@ -1512,6 +1620,8 @@
         const material = {
           id: currentMaterialId, partNumber: document.querySelector("#part-number").value.trim(), manufacturer: document.querySelector("#manufacturer").value.trim(),
           description: document.querySelector("#description").value.trim(), category: category.value,
+          stockLocationId: stockLocation.value,
+          publicLocation: availableStockLocations.find((location) => location.id === stockLocation.value) || null,
           otherCategory: otherCategory.value.trim(), subcategory: subcategory.value,
           otherSubcategory: otherSubcategory.value.trim(), materialType: materialType.value,
           otherMaterialType: otherMaterialType.value.trim(),

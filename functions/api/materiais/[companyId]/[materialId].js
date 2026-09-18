@@ -26,6 +26,7 @@ function publicAdvertisement(material, publishedAt) {
     files: (material.files || []).filter((file) => file.kind === "photo"),
     coverPhotoId: material.coverPhotoId,
     unitPriceCents: material.unitPriceCents,
+    publicLocation: material.publicLocation ? { country: material.publicLocation.country, state: material.publicLocation.state } : null,
     status: "published",
     publishedAt,
   };
