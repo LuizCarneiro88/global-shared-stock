@@ -76,6 +76,10 @@
       .company-data-list dd { margin: 3px 0 0; overflow-wrap: anywhere; font-weight: 700; }
       .protected-note { margin: 12px 0 0; color: var(--muted); font-size: .76rem; line-height: 1.45; }
       .material-values { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 14px; font-size: 0.82rem; }
+      .quantity-summary { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 14px; }
+      .quantity-item { padding: 10px; border: 1px solid var(--line); border-radius: 9px; background: rgb(9 11 13 / 42%); }
+      .quantity-item span { display: block; color: var(--muted); font-size: .7rem; }
+      .quantity-item strong { display: block; margin-top: 3px; font-size: .9rem; }
       .card-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
       .status-pill { padding: 6px 9px; border: 1px solid #5a5f67; border-radius: 999px; color: var(--silver); font-size: 0.72rem; font-weight: 750; }
       .reference-data { margin: 16px 0; padding: 14px; border: 1px solid var(--line); border-radius: 11px; background: rgb(9 11 13 / 48%); opacity: .78; }
@@ -161,7 +165,7 @@
               <p id="stock-location-guidance" class="help">O local padrão será selecionado automaticamente.</p>
               <button id="manage-stock-locations" class="secondary" type="button">Cadastrar ou consultar locais</button>
             </div>
-            <div><label for="quantity">Quantidade disponível *</label><input id="quantity" type="number" inputmode="decimal" min="0.001" step="0.001" required /></div>
+            <div><label for="quantity">Quantidade atual em estoque *</label><input id="quantity" type="number" inputmode="decimal" min="0.001" step="0.001" required /><p class="help">Informe o total colocado à venda. Reservas e vendas serão descontadas automaticamente.</p></div>
             <div><label for="unit">Unidade de medida *</label><select id="unit" required><option value="">Selecione</option><option value="unit">Unidade</option><option value="lot">Lote</option><option value="kg">Quilograma</option><option value="meter">Metro</option><option value="square_meter">Metro quadrado (m²)</option><option value="cubic_meter">Metro cúbico (m³)</option><option value="liter">Litro</option><option value="other">Outro</option></select></div>
             <div id="other-unit-field" hidden><label for="other-unit">Outra unidade *</label><input id="other-unit" maxlength="30" /></div>
             <div><label for="certificate">Possui certificado? *</label><select id="certificate" required><option value="">Selecione</option><option value="yes">Sim</option><option value="no">Não</option></select></div>
@@ -909,7 +913,7 @@
         }
         document.querySelector("#condition").value = material.condition;
         renderStockLocationOptions(availableStockLocations, material.stockLocationId);
-        quantity.value = material.quantity;
+        quantity.value = material.quantityCurrent ?? material.quantity;
         unit.value = material.unit;
         const customUnit = material.unit === "other";
         otherUnitField.hidden = !customUnit;
@@ -988,11 +992,27 @@
         values.className = "material-values";
         const unitLabel = material.unit === "other" ? material.otherUnit : unitLabels[material.unit];
         const certificateLabel = material.hasCertificate ? "Com certificado" : "Sem certificado";
-        values.textContent = `${material.quantity} ${unitLabel} · ${conditionLabels[material.condition]} · ${certificateLabel} · ${money.format(material.unitPriceCents / 100)} por unidade de medida · Líquido total ${money.format(material.totalNetCents / 100)}`;
+        values.textContent = `${conditionLabels[material.condition]} · ${certificateLabel} · ${money.format(material.unitPriceCents / 100)} por unidade de medida · Líquido total ${money.format(material.totalNetCents / 100)}`;
+        const quantityCurrent = Number(material.quantityCurrent ?? material.quantity) || 0;
+        const quantityReserved = Math.max(0, Number(material.quantityReserved) || 0);
+        const quantitySold = Math.max(0, Number(material.quantitySold) || 0);
+        const quantityAvailable = Math.max(0, Number.isFinite(Number(material.quantityAvailable)) ? Number(material.quantityAvailable) : quantityCurrent - quantityReserved - quantitySold);
+        const quantitySummary = document.createElement("div");
+        quantitySummary.className = "quantity-summary";
+        [["Atual", quantityCurrent], ["Em negociação", quantityReserved], ["Vendida", quantitySold], ["Disponível", quantityAvailable]].forEach(([label, value]) => {
+          const item = document.createElement("div");
+          item.className = "quantity-item";
+          const name = document.createElement("span");
+          const content = document.createElement("strong");
+          name.textContent = label;
+          content.textContent = `${value} ${unitLabel || ""}`.trim();
+          item.append(name, content);
+          quantitySummary.append(item);
+        });
         const location = document.createElement("p");
         const locationInformation = availableStockLocations.find((entry) => entry.id === material.stockLocationId) || material.publicLocation;
         location.textContent = locationInformation ? `Local: ${locationInformation.name} — ${locationInformation.state}, ${locationInformation.country}` : "Local de estoque não informado";
-        item.append(header, description, classification, location, values);
+        item.append(header, description, classification, location, quantitySummary, values);
         if (!removable && material.status === "rejected") {
           const rejection = document.createElement("p");
           rejection.textContent = `Motivo da rejeição: ${material.rejectionReason}`;
@@ -1625,7 +1645,7 @@
           otherCategory: otherCategory.value.trim(), subcategory: subcategory.value,
           otherSubcategory: otherSubcategory.value.trim(), materialType: materialType.value,
           otherMaterialType: otherMaterialType.value.trim(),
-          condition: document.querySelector("#condition").value, quantity: Number(quantity.value), unit: unit.value, otherUnit: otherUnit.value.trim(),
+          condition: document.querySelector("#condition").value, quantity: Number(quantity.value), quantityCurrent: Number(quantity.value), quantityReserved: 0, quantitySold: 0, quantityAvailable: Number(quantity.value), unit: unit.value, otherUnit: otherUnit.value.trim(),
           hasCertificate: certificate.value === "yes", files: [...currentFiles.photos, ...(certificate.value === "yes" && currentFiles.certificate ? [currentFiles.certificate] : [])], coverPhotoId,
           unitPriceCents: values.unitPrice,
           unitCommissionCents: values.unitCommission, unitNetCents: values.unitNet, totalPriceCents: values.totalPrice,

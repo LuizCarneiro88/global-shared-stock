@@ -15,6 +15,18 @@ function cleanText(value, maximumLength) {
   return typeof value === "string" ? value.trim().slice(0, maximumLength) : "";
 }
 
+function quantities(material) {
+  const current = Number(material.quantityCurrent ?? material.quantity) || 0;
+  const reserved = Math.max(0, Number(material.quantityReserved) || 0);
+  const sold = Math.max(0, Number(material.quantitySold) || 0);
+  return { current, reserved, sold, available: Math.max(0, current - reserved - sold) };
+}
+
+function materialWithQuantities(material) {
+  const summary = quantities(material);
+  return { ...material, quantity: summary.current, quantityCurrent: summary.current, quantityReserved: summary.reserved, quantitySold: summary.sold, quantityAvailable: summary.available };
+}
+
 function normalizedMaterial(input, manifest, stockLocations) {
   const quantity = Number(input.quantity);
   const unitPriceCents = Number(input.unitPriceCents);
@@ -83,6 +95,10 @@ function normalizedMaterial(input, manifest, stockLocations) {
     otherMaterialType: materialType === OTHER_CLASSIFICATION ? otherMaterialType : "",
     condition: input.condition,
     quantity,
+    quantityCurrent: quantity,
+    quantityReserved: 0,
+    quantitySold: 0,
+    quantityAvailable: quantity,
     unit: input.unit,
     otherUnit: input.unit === "other" ? cleanText(input.otherUnit, 30) : "",
     hasCertificate: input.hasCertificate === true,
@@ -111,7 +127,7 @@ export async function onRequestGet(context) {
   do {
     const page = await context.env.CADASTROS.list({ prefix: `material:${session.companyId}:`, cursor });
     const records = await Promise.all(page.keys.map((key) => context.env.CADASTROS.get(key.name, "json")));
-    materials.push(...records.filter(Boolean));
+    materials.push(...records.filter(Boolean).map(materialWithQuantities));
     cursor = page.list_complete ? undefined : page.cursor;
   } while (cursor);
   materials.sort((first, second) => second.submittedAt.localeCompare(first.submittedAt));

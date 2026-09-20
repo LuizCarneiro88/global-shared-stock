@@ -30,6 +30,7 @@ export async function onRequestGet(context) {
       else if (session) eligibility = { allowed: false, code: "company_not_approved", message: "A empresa precisa estar aprovada para consultar o preço e registrar interesse." };
       return {
         ...advertisement,
+        quantity: Math.max(0, Number(advertisement.quantityAvailable ?? advertisement.quantity) || 0),
         photos: (files || []).map((file) => ({ id: file.id, url: `/api/anuncios/${advertisement.id}/fotos/${file.id}` })),
         eligibility,
         ...(eligibility.allowed ? { unitPriceCents, hasCertificate } : {}),

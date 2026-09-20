@@ -6,6 +6,10 @@ function error(message, status = 400) {
 }
 
 function publicAdvertisement(material, publishedAt) {
+  const quantityCurrent = Number(material.quantityCurrent ?? material.quantity) || 0;
+  const quantityReserved = Math.max(0, Number(material.quantityReserved) || 0);
+  const quantitySold = Math.max(0, Number(material.quantitySold) || 0);
+  const quantityAvailable = Math.max(0, quantityCurrent - quantityReserved - quantitySold);
   return {
     id: material.id,
     companyId: material.companyId,
@@ -19,7 +23,8 @@ function publicAdvertisement(material, publishedAt) {
     materialType: material.materialType,
     otherMaterialType: material.otherMaterialType,
     condition: material.condition,
-    quantity: material.quantity,
+    quantity: quantityAvailable,
+    quantityAvailable,
     unit: material.unit,
     otherUnit: material.otherUnit,
     hasCertificate: material.hasCertificate,

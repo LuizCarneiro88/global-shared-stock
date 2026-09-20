@@ -884,7 +884,14 @@
         addDetail(details, "Fabricante", material.manufacturer);
         addDetail(details, "Classificação", [category, subcategory, type].filter(Boolean).join(" › "));
         addDetail(details, "Condição", conditionLabels[material.condition]);
-        addDetail(details, "Quantidade", `${material.quantity} ${unit || ""}`.trim());
+        const quantityCurrent = Number(material.quantityCurrent ?? material.quantity) || 0;
+        const quantityReserved = Math.max(0, Number(material.quantityReserved) || 0);
+        const quantitySold = Math.max(0, Number(material.quantitySold) || 0);
+        const quantityAvailable = Math.max(0, Number.isFinite(Number(material.quantityAvailable)) ? Number(material.quantityAvailable) : quantityCurrent - quantityReserved - quantitySold);
+        addDetail(details, "Quantidade atual", `${quantityCurrent} ${unit || ""}`.trim());
+        addDetail(details, "Em negociação", `${quantityReserved} ${unit || ""}`.trim());
+        addDetail(details, "Quantidade vendida", `${quantitySold} ${unit || ""}`.trim());
+        addDetail(details, "Quantidade disponível", `${quantityAvailable} ${unit || ""}`.trim());
         if (material.stockLocation) {
           const address = material.stockLocation.protectedAddress || {};
           addDetail(details, "Local de estoque", `${material.stockLocation.name} · ${material.stockLocation.state}, ${material.stockLocation.country}`);
