@@ -16,13 +16,15 @@ export async function onRequestGet(context) {
     do {
       const page = await context.env.CADASTROS.list({ prefix: "anuncio:", cursor });
       const records = await Promise.all(page.keys.map((key) => context.env.CADASTROS.get(key.name, "json")));
-      advertisements.push(...records.filter((advertisement) => advertisement?.status === "published"));
+      const now = Date.now();
+      advertisements.push(...records.filter((advertisement) => advertisement?.status === "published" || (advertisement?.status === "sold_display" && new Date(advertisement.removeFromShowcaseAt).getTime() > now)));
       cursor = page.list_complete ? undefined : page.cursor;
     } while (cursor);
     advertisements.sort((first, second) => second.publishedAt.localeCompare(first.publishedAt));
     const publicAdvertisements = advertisements.map(({ companyId, files, unitPriceCents, hasCertificate, ...advertisement }) => {
       let eligibility = { allowed: false, code: "not_registered", message: "Cadastre sua empresa ou entre em uma conta aprovada para consultar o preço e registrar interesse." };
-      if (viewerCompany?.status === "approved") {
+      if (advertisement.status === "sold_display") eligibility = { allowed: false, code: "sold", message: "Este material foi vendido e não está mais disponível para novos interesses." };
+      else if (viewerCompany?.status === "approved") {
         if (viewerCompany.id === companyId) eligibility = { allowed: false, code: "own_advertisement", message: "Sua empresa não pode registrar interesse no próprio anúncio." };
         else if (viewerCompany.interest === "sell") eligibility = { allowed: false, code: "seller_only", message: "Sua empresa está cadastrada exclusivamente como vendedora e não pode registrar interesses de compra." };
         else if (["buy", "both"].includes(viewerCompany.interest)) eligibility = { allowed: true, code: "allowed", message: "Sua empresa está autorizada a registrar interesse neste material." };

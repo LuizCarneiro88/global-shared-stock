@@ -227,7 +227,7 @@
         if (cover) { const image = document.createElement("img"); image.src = cover.url; image.alt = "Fotografia do material anunciado"; image.loading = "lazy"; photoWrap.append(image); }
         const availability = document.createElement("span");
         availability.className = "availability";
-        availability.textContent = "Disponível";
+        availability.textContent = advertisement.status === "sold_display" ? "Vendido" : "Disponível";
         photoWrap.append(availability);
 
         const content = document.createElement("div");
@@ -255,6 +255,7 @@
         interest.className = "interest";
         interest.type = "button";
         interest.textContent = "Tenho interesse";
+        if (advertisement.status === "sold_display") interest.textContent = "Material vendido";
         const message = document.createElement("p");
         message.className = "block-message";
         message.hidden = true;

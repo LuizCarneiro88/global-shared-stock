@@ -585,7 +585,7 @@
       const money = { format: (value) => `US$ ${americanNumber.format(value)}` };
       const deadlineLabels = { immediate: "Imediato", "7_days": "Em até 7 dias", "15_days": "Em até 15 dias", "30_days": "Em até 30 dias", flexible: "Prazo flexível" };
       const subjectLabels = { availability: "Confirmar disponibilidade", technical: "Dúvida técnica", commercial: "Condição comercial", documentation: "Documentação ou certificado", other: "Outro assunto" };
-      const interestStatusLabels = { received: { label: "Recebido", className: "" }, resubmitted: { label: "Reenviado para avaliação", className: "" }, in_intermediation: { label: "Em intermediação", className: "approved" }, awaiting_seller: { label: "Aguardando vendedor", className: "" }, seller_response_received: { label: "Resposta recebida", className: "approved" }, seller_correction_requested: { label: "Correção solicitada ao vendedor", className: "" }, response_shared: { label: "Encaminhada ao comprador", className: "approved" }, buyer_accepted: { label: "Condições aceitas", className: "approved" }, buyer_adjustment_requested: { label: "Ajuste solicitado", className: "" }, buyer_adjustment_correction_requested: { label: "Correção solicitada à compradora", className: "" }, seller_adjustment_requested: { label: "Ajuste encaminhado à vendedora", className: "" }, seller_adjustment_response_received: { label: "Resposta ao ajuste recebida", className: "approved" }, agreement_confirmed: { label: "Aguardando Ordem de Compra", className: "approved" }, commission_po_submitted: { label: "Ordem de Compra recebida", className: "approved" }, commission_po_correction_requested: { label: "Correção da Ordem de Compra solicitada", className: "" }, commission_secured: { label: "Comissão garantida", className: "approved" }, closed_no_sale: { label: "Encerrada sem venda", className: "rejected" }, rejected: { label: "Rejeitado", className: "rejected" } };
+      const interestStatusLabels = { received: { label: "Recebido", className: "" }, resubmitted: { label: "Reenviado para avaliação", className: "" }, in_intermediation: { label: "Em intermediação", className: "approved" }, awaiting_seller: { label: "Aguardando vendedor", className: "" }, seller_response_received: { label: "Resposta recebida", className: "approved" }, seller_correction_requested: { label: "Correção solicitada ao vendedor", className: "" }, response_shared: { label: "Encaminhada ao comprador", className: "approved" }, buyer_accepted: { label: "Condições aceitas", className: "approved" }, buyer_adjustment_requested: { label: "Ajuste solicitado", className: "" }, buyer_adjustment_correction_requested: { label: "Correção solicitada à compradora", className: "" }, seller_adjustment_requested: { label: "Ajuste encaminhado à vendedora", className: "" }, seller_adjustment_response_received: { label: "Resposta ao ajuste recebida", className: "approved" }, agreement_confirmed: { label: "Aguardando Ordem de Compra", className: "approved" }, commission_po_submitted: { label: "Ordem de Compra recebida", className: "approved" }, commission_po_correction_requested: { label: "Correção da Ordem de Compra solicitada", className: "" }, commission_secured: { label: "Comissão garantida", className: "approved" }, sold: { label: "Venda concluída", className: "approved" }, closed_no_sale: { label: "Encerrada sem venda", className: "rejected" }, rejected: { label: "Rejeitado", className: "rejected" } };
       const sellerAvailabilityLabels = { available: "Disponível", partial: "Parcialmente disponível", unavailable: "Indisponível" };
       const sellerDeadlineLabels = { immediate: "Imediato", "7_days": "Em até 7 dias", "15_days": "Em até 15 dias", "30_days": "Em até 30 dias", over_30_days: "Acima de 30 dias", not_applicable: "Não se aplica" };
       const adjustmentTopicLabels = { quantity: "Quantidade", price: "Preço", deadline: "Prazo", documentation: "Documentação" };
@@ -1092,6 +1092,10 @@
         addDetail(details, "Contato do vendedor", interest.seller?.primaryEmail);
         addDetail(details, "Part number", interest.partNumber);
         addDetail(details, "Quantidade desejada", `${interest.quantity} ${unit || ""}`.trim());
+        if (interest.reservation) {
+          const reservationLabels = { active: "Ativa", released: "Liberada", converted_to_sale: "Convertida em venda" };
+          addDetail(details, "Reserva de estoque", `${interest.reservation.quantity} ${unit || ""} — ${reservationLabels[interest.reservation.status] || interest.reservation.status}`.trim());
+        }
         addDetail(details, "Prazo", deadlineLabels[interest.deadline]);
         addDetail(details, "Assunto", subjectLabels[interest.subject]);
         addDetail(details, "Recebido em", new Intl.DateTimeFormat("pt-BR", { dateStyle: "long", timeStyle: "short" }).format(new Date(interest.createdAt)));
@@ -1360,12 +1364,36 @@
         } else if (interest.status === "commission_po_correction_requested") {
           const nextStep = document.createElement("p"); nextStep.className = "interest-note"; nextStep.textContent = "Aguardando a empresa vendedora substituir a Ordem de Compra."; article.append(nextStep);
         } else if (interest.status === "commission_secured") {
-          const nextStep = document.createElement("p"); nextStep.className = "interest-note"; nextStep.textContent = "Comissão formalmente garantida por Ordem de Compra. Os contatos foram liberados para as duas empresas."; article.append(nextStep);
+          const nextStep = document.createElement("p"); nextStep.className = "interest-note"; nextStep.textContent = "Comissão garantida e contatos liberados. Registre o resultado final da operação.";
+          const actions = document.createElement("div"); actions.className = "actions";
+          const sold = document.createElement("button"); sold.className = "action-button approve-button"; sold.type = "button"; sold.textContent = "Confirmar venda concluída";
+          const close = document.createElement("button"); close.className = "action-button reject-button"; close.type = "button"; close.textContent = "Encerrar sem venda";
+          actions.append(sold, close);
+          const closureForm = document.createElement("div"); closureForm.hidden = true;
+          const closureLabel = document.createElement("label"); closureLabel.textContent = "Motivo do encerramento sem venda *";
+          const closureReason = document.createElement("textarea"); closureReason.maxLength = 500; closureReason.placeholder = "Explique por que a operação não foi concluída.";
+          const confirmClosure = document.createElement("button"); confirmClosure.className = "action-button reject-button"; confirmClosure.type = "button"; confirmClosure.textContent = "Confirmar encerramento";
+          const feedback = document.createElement("p"); feedback.className = "feedback"; feedback.hidden = true;
+          closureForm.append(closureLabel, closureReason, confirmClosure);
+          const finish = async (status) => {
+            if (status === "closed_no_sale" && !closureReason.value.trim()) { closureReason.setCustomValidity("Informe o motivo."); closureReason.reportValidity(); return; }
+            closureReason.setCustomValidity(""); sold.disabled = true; close.disabled = true; confirmClosure.disabled = true; feedback.hidden = true;
+            try {
+              const response = await fetch(`/api/interesses/${interest.id}`, { method: "PATCH", headers: { "Content-Type": "application/json", Accept: "application/json" }, body: JSON.stringify({ status, closureReason: closureReason.value }) });
+              const result = await response.json(); if (!response.ok) throw new Error(result.message || "Não foi possível concluir a negociação."); Object.assign(interest, result.interest); article.replaceWith(createInterestCard(interest));
+            } catch (error) { feedback.textContent = error.message; feedback.hidden = false; sold.disabled = false; close.disabled = false; confirmClosure.disabled = false; }
+          };
+          sold.addEventListener("click", () => { if (confirm("Confirma que a venda foi concluída? Esta ação converterá a reserva em quantidade vendida.")) finish("sold"); });
+          close.addEventListener("click", () => { closureForm.hidden = false; closureReason.focus(); });
+          confirmClosure.addEventListener("click", () => { if (confirm("Confirma o encerramento sem venda e a liberação da reserva?")) finish("closed_no_sale"); });
+          article.append(nextStep, actions, closureForm, feedback);
+        } else if (interest.status === "sold") {
+          const nextStep = document.createElement("p"); nextStep.className = "interest-note"; nextStep.textContent = "Venda concluída. A reserva foi convertida em quantidade vendida."; article.append(nextStep);
         } else if (interest.status === "closed_no_sale") {
           const nextStep = document.createElement("p"); nextStep.className = "interest-note"; nextStep.textContent = interest.closureReason ? `Negociação encerrada sem venda: ${interest.closureReason}` : "Negociação encerrada sem venda por decisão da compradora."; article.append(nextStep);
         }
 
-        const movementDates = [interest.createdAt, interest.decidedAt, interest.revisedAt, interest.sellerRequestedAt, interest.sellerResponse?.respondedAt, interest.responseSharedAt, interest.buyerDecision?.decidedAt, interest.buyerAdjustmentSharedAt, interest.sellerAdjustmentResponse?.decidedAt, interest.agreementConfirmedAt, interest.commissionPurchaseOrder?.uploadedAt, interest.commissionCorrectionRequestedAt, interest.commissionSecuredAt].filter(Boolean);
+        const movementDates = [interest.createdAt, interest.decidedAt, interest.revisedAt, interest.sellerRequestedAt, interest.sellerResponse?.respondedAt, interest.responseSharedAt, interest.buyerDecision?.decidedAt, interest.buyerAdjustmentSharedAt, interest.sellerAdjustmentResponse?.decidedAt, interest.agreementConfirmedAt, interest.commissionPurchaseOrder?.uploadedAt, interest.commissionCorrectionRequestedAt, interest.commissionSecuredAt, interest.soldAt, interest.closedAt].filter(Boolean);
         const lastMovement = movementDates.sort((first, second) => new Date(second) - new Date(first))[0] || interest.createdAt;
         const compact = document.createElement("div"); compact.className = "interest-card-summary";
         const compactText = document.createElement("p"); compactText.textContent = `${interest.buyer?.companyName || "Empresa compradora"} → ${interest.seller?.companyName || "Empresa vendedora"} · Última movimentação: ${new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short" }).format(new Date(lastMovement))}`;

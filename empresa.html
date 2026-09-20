@@ -1176,6 +1176,7 @@
               const response = await fetch(`/api/interesses/${interest.id}`, { method: "PATCH", headers: { "Content-Type": "application/json", Accept: "application/json" }, body: JSON.stringify(payload) });
               const result = await response.json(); if (!response.ok) throw new Error(result.message || "Não foi possível registrar a decisão.");
               Object.assign(interest, result.interest); item.replaceWith(createInterestCard(interest));
+              if (payload.buyerAction === "reject") await loadMaterials();
             } catch (error) { feedback.textContent = error.message; feedback.hidden = false; buttons.forEach((button) => { button.disabled = false; }); }
           };
           accept.addEventListener("click", () => { if (confirm("Confirma que aceita as condições apresentadas?")) sendDecision({ buyerAction: "accept" }, [accept, adjust, rejectConditions], decisionFeedback); });
@@ -1335,6 +1336,12 @@
         const perspective = negotiation.perspective === "seller" ? "Sua empresa está vendendo" : "Sua empresa demonstrou interesse";
         information.textContent = `${perspective} · Quantidade: ${negotiation.quantity} ${unitName || ""} · Prazo: ${deadlineLabels[negotiation.deadline]}`;
         item.append(header, information);
+        if (negotiation.reservation) {
+          const reservationLabels = { active: "Reserva ativa", released: "Reserva liberada", converted_to_sale: "Convertida em venda" };
+          const reservation = document.createElement("p");
+          reservation.textContent = `${reservationLabels[negotiation.reservation.status] || "Reserva"}: ${negotiation.reservation.quantity} ${unitName || ""}`.trim();
+          item.append(reservation);
+        }
         if (negotiation.partNumber) { const partNumber = document.createElement("p"); partNumber.textContent = `Part number: ${negotiation.partNumber}`; item.append(partNumber); }
         if (negotiation.perspective === "seller" && negotiation.advertised) {
           const reference = document.createElement("section");
@@ -1349,7 +1356,7 @@
           addReference("Part number", negotiation.partNumber);
           addReference("Fabricante", negotiation.advertised.manufacturer);
           addReference("Condição", conditionLabels[negotiation.advertised.condition]);
-          addReference("Estoque cadastrado", `${negotiation.advertised.quantity} ${advertisedUnit || ""}`.trim());
+          addReference("Disponível no anúncio", `${negotiation.advertised.quantity} ${advertisedUnit || ""}`.trim());
           addReference("Preço final cadastrado", money.format(negotiation.advertised.unitPriceCents / 100));
           addReference("Possui certificado", negotiation.advertised.hasCertificate ? "Sim" : "Não");
           reference.append(referenceTitle, grid);

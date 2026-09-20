@@ -1,4 +1,5 @@
 import { getSession } from "../../_auth.js";
+import { convertReservationToSale, releaseInventory, reserveInventory } from "../../_inventory.js";
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const DECISIONS = new Set(["in_intermediation", "rejected"]);
@@ -129,7 +130,10 @@ export async function onRequestPatch(context) {
         const reason = String(input.reason || "").trim().replace(/\s+/g, " ").slice(0, 500);
         if (!reason) return error("Informe o motivo da recusa.");
         if (containsDirectContact(reason)) return error("O motivo não pode conter e-mail, telefone ou link.");
-        const updated = { ...interest, status: "closed_no_sale", buyerDecision: { type: "rejected", reason, decidedAt } };
+        let inventory;
+        try { inventory = await releaseInventory(context.env, interest, session.userId || session.email, "Condições recusadas pela empresa compradora."); }
+        catch (caught) { return error(caught.message || "Não foi possível liberar a reserva.", 409); }
+        const updated = { ...interest, status: "closed_no_sale", buyerDecision: { type: "rejected", reason, decidedAt }, reservation: inventory?.reservation || interest.reservation || null };
         await context.env.CADASTROS.put(key, JSON.stringify(updated));
         const { sellerCompanyId, buyerCompanyId, sellerResponseHistory, sellerCorrectionReason, ...safeInterest } = updated;
         return Response.json({ success: true, interest: safeInterest, message: "Condições recusadas. A negociação foi encerrada sem venda." }, { headers: { "Cache-Control": "no-store" } });
@@ -191,7 +195,15 @@ export async function onRequestPatch(context) {
   }
   if (status === "response_shared") {
     if (interest.status !== "seller_response_received" || !interest.sellerResponse) return error("Não há uma resposta do vendedor pronta para encaminhamento.", 409);
-    const updated = { ...interest, status: "response_shared", responseSharedAt: new Date().toISOString() };
+    const confirmedQuantity = Number(interest.sellerResponse.confirmedQuantity);
+    let reservation = interest.reservation || null;
+    if (confirmedQuantity > 0) {
+      let inventory;
+      try { inventory = await reserveInventory(context.env, interest, confirmedQuantity, session.email); }
+      catch (caught) { return error(caught.message || "Não foi possível reservar o estoque.", 409); }
+      reservation = inventory.reservation;
+    }
+    const updated = { ...interest, status: "response_shared", responseSharedAt: new Date().toISOString(), reservation };
     await context.env.CADASTROS.put(key, JSON.stringify(updated));
     return Response.json({ success: true, interest: updated }, { headers: { "Cache-Control": "no-store" } });
   }
@@ -221,7 +233,13 @@ export async function onRequestPatch(context) {
     const directAcceptance = interest.status === "buyer_accepted" && interest.buyerDecision?.type === "accepted";
     const acceptedAdjustment = interest.status === "seller_adjustment_response_received" && interest.sellerAdjustmentResponse?.type === "accepted";
     if (!directAcceptance && !acceptedAdjustment) return error("Não há um acordo aceito pronto para confirmação.", 409);
-    const updated = { ...interest, status: "agreement_confirmed", agreementConfirmedAt: new Date().toISOString() };
+    const finalQuantity = acceptedAdjustment && interest.buyerDecision?.requestedQuantity
+      ? Number(interest.buyerDecision.requestedQuantity)
+      : Number(interest.sellerResponse?.confirmedQuantity);
+    let inventory;
+    try { inventory = await reserveInventory(context.env, interest, finalQuantity, session.email); }
+    catch (caught) { return error(caught.message || "Não foi possível ajustar a reserva.", 409); }
+    const updated = { ...interest, status: "agreement_confirmed", agreementConfirmedAt: new Date().toISOString(), reservation: inventory.reservation, agreedQuantity: finalQuantity };
     await context.env.CADASTROS.put(key, JSON.stringify(updated));
     return Response.json({ success: true, interest: updated, message: "Acordo confirmado. A negociação seguirá para formalização." }, { headers: { "Cache-Control": "no-store" } });
   }
@@ -243,9 +261,39 @@ export async function onRequestPatch(context) {
     const reason = String(input.commissionCorrectionReason || "").trim().replace(/\s+/g, " ").slice(0, 500);
     if (interest.status !== "commission_po_submitted" || !interest.commissionPurchaseOrder) return error("Não há uma Ordem de Compra para rejeitar.", 409);
     if (!reason) return error("Informe o motivo da rejeição.");
-    const updated = { ...interest, status: "closed_no_sale", closureReason: reason, closedAt: new Date().toISOString(), commissionPurchaseOrder: { ...interest.commissionPurchaseOrder, status: "rejected", rejectionReason: reason } };
+    let inventory;
+    try { inventory = await releaseInventory(context.env, interest, session.email, "Ordem de Compra da comissão rejeitada."); }
+    catch (caught) { return error(caught.message || "Não foi possível liberar a reserva.", 409); }
+    const updated = { ...interest, status: "closed_no_sale", closureReason: reason, closedAt: new Date().toISOString(), reservation: inventory?.reservation || interest.reservation || null, commissionPurchaseOrder: { ...interest.commissionPurchaseOrder, status: "rejected", rejectionReason: reason } };
     await context.env.CADASTROS.put(key, JSON.stringify(updated));
     return Response.json({ success: true, interest: updated }, { headers: { "Cache-Control": "no-store" } });
+  }
+  if (status === "sold") {
+    if (interest.status !== "commission_secured") return error("A venda só pode ser concluída depois da garantia da comissão.", 409);
+    let inventory;
+    try {
+      if (interest.reservation?.status !== "active") {
+        const legacyAcceptedAdjustment = interest.sellerAdjustmentResponse?.type === "accepted" ? interest.buyerDecision : null;
+        const legacyQuantity = Number(interest.agreedQuantity || legacyAcceptedAdjustment?.requestedQuantity || interest.sellerResponse?.confirmedQuantity);
+        await reserveInventory(context.env, interest, legacyQuantity, session.email);
+      }
+      inventory = await convertReservationToSale(context.env, interest, session.email);
+    }
+    catch (caught) { return error(caught.message || "Não foi possível converter a reserva em venda.", 409); }
+    const updated = { ...interest, status: "sold", soldAt: new Date().toISOString(), reservation: inventory.reservation, soldQuantity: inventory.reservation.quantity };
+    await context.env.CADASTROS.put(key, JSON.stringify(updated));
+    return Response.json({ success: true, interest: updated, message: "Venda concluída e estoque atualizado." }, { headers: { "Cache-Control": "no-store" } });
+  }
+  if (status === "closed_no_sale") {
+    const reason = String(input.closureReason || "").trim().replace(/\s+/g, " ").slice(0, 500);
+    if (interest.status !== "commission_secured") return error("Somente uma negociação com contatos liberados pode ser encerrada nesta etapa.", 409);
+    if (!reason) return error("Informe o motivo do encerramento sem venda.");
+    let inventory;
+    try { inventory = await releaseInventory(context.env, interest, session.email, reason); }
+    catch (caught) { return error(caught.message || "Não foi possível liberar a reserva.", 409); }
+    const updated = { ...interest, status: "closed_no_sale", closureReason: reason, closedAt: new Date().toISOString(), reservation: inventory?.reservation || interest.reservation || null };
+    await context.env.CADASTROS.put(key, JSON.stringify(updated));
+    return Response.json({ success: true, interest: updated, message: "Negociação encerrada sem venda e estoque liberado." }, { headers: { "Cache-Control": "no-store" } });
   }
   if (!DECISIONS.has(status)) return error("Decisão inválida.");
   if (status === "rejected" && !rejectionReason) return error("Informe o motivo da rejeição.");
