@@ -165,6 +165,11 @@
               <p id="stock-location-guidance" class="help">O local padrão será selecionado automaticamente.</p>
               <button id="manage-stock-locations" class="secondary" type="button">Cadastrar ou consultar locais</button>
             </div>
+            <div class="field-wide">
+              <label for="commercial-contact">Contato responsável por este material *</label>
+              <select id="commercial-contact" required><option value="">Carregando contatos...</option></select>
+              <p class="help">Este contato será compartilhado somente após a formalização da negociação.</p>
+            </div>
             <div><label for="quantity">Quantidade atual em estoque *</label><input id="quantity" type="number" inputmode="decimal" min="0.001" step="0.001" required /><p class="help">Informe o total colocado à venda. Reservas e vendas serão descontadas automaticamente.</p></div>
             <div><label for="unit">Unidade de medida *</label><select id="unit" required><option value="">Selecione</option><option value="unit">Unidade</option><option value="lot">Lote</option><option value="kg">Quilograma</option><option value="meter">Metro</option><option value="square_meter">Metro quadrado (m²)</option><option value="cubic_meter">Metro cúbico (m³)</option><option value="liter">Litro</option><option value="other">Outro</option></select></div>
             <div id="other-unit-field" hidden><label for="other-unit">Outra unidade *</label><input id="other-unit" maxlength="30" /></div>
@@ -327,6 +332,7 @@
       const quantity = document.querySelector("#quantity");
       const price = document.querySelector("#price");
       const stockLocation = document.querySelector("#stock-location");
+      const commercialContact = document.querySelector("#commercial-contact");
       const stockLocationGuidance = document.querySelector("#stock-location-guidance");
       const manageStockLocations = document.querySelector("#manage-stock-locations");
       const draftList = document.querySelector("#draft-list");
@@ -370,6 +376,7 @@
       let interestsAreLoading = false;
       let companyDataLoaded = false;
       let availableStockLocations = [];
+      let availableCommercialContacts = [];
       const workspaceTabs = [...document.querySelectorAll(".workspace-tab")];
       const workspacePanels = [...document.querySelectorAll(".workspace-tab-panel")];
       const companyProfileLabels = { buy: "Compradora", sell: "Vendedora", both: "Compradora e vendedora" };
@@ -560,6 +567,23 @@
         const preferred = locations.find((location) => location.id === selectedId) || locations.find((location) => location.defaultForNewMaterials);
         stockLocation.value = preferred?.id || "";
         stockLocationGuidance.textContent = locations.length ? "Somente país e estado poderão aparecer antes da formalização." : "Cadastre um local na aba Dados da empresa antes de adicionar materiais.";
+      }
+
+      function renderCommercialContactOptions(contacts, selectedId = "") {
+        availableCommercialContacts = contacts;
+        commercialContact.replaceChildren();
+        const placeholder = document.createElement("option");
+        placeholder.value = "";
+        placeholder.textContent = contacts.length ? "Selecione" : "Cadastre um contato comercial";
+        commercialContact.append(placeholder);
+        contacts.forEach((contact) => {
+          const option = document.createElement("option");
+          option.value = contact.id;
+          option.textContent = `${contact.name} — ${contact.role}${contact.primary ? " — principal" : ""}`;
+          commercialContact.append(option);
+        });
+        const preferred = contacts.find((contact) => contact.id === selectedId) || contacts.find((contact) => contact.primary) || contacts[0];
+        commercialContact.value = preferred?.id || "";
       }
 
       manageStockLocations.addEventListener("click", async () => {
@@ -885,6 +909,7 @@
         coverPhotoId = "";
         form.reset();
         renderStockLocationOptions(availableStockLocations);
+        renderCommercialContactOptions(availableCommercialContacts);
         addMaterialButton.textContent = "Adicionar à lista";
         cancelEditButton.hidden = true;
         toggleCustomField(otherCategoryField, otherCategory, false);
@@ -930,6 +955,7 @@
         }
         document.querySelector("#condition").value = material.condition;
         renderStockLocationOptions(availableStockLocations, material.stockLocationId);
+        renderCommercialContactOptions(availableCommercialContacts, material.commercialContactId);
         quantity.value = material.quantityCurrent ?? material.quantity;
         unit.value = material.unit;
         const customUnit = material.unit === "other";
@@ -1029,7 +1055,10 @@
         const location = document.createElement("p");
         const locationInformation = availableStockLocations.find((entry) => entry.id === material.stockLocationId) || material.publicLocation;
         location.textContent = locationInformation ? `Local: ${locationInformation.name} — ${locationInformation.state}, ${locationInformation.country}` : "Local de estoque não informado";
-        item.append(header, description, classification, location, quantitySummary, values);
+        const responsible = document.createElement("p");
+        const responsibleInformation = availableCommercialContacts.find((entry) => entry.id === material.commercialContactId);
+        responsible.textContent = responsibleInformation ? `Contato responsável: ${responsibleInformation.name} — ${responsibleInformation.role}` : "Contato responsável: contato principal da empresa";
+        item.append(header, description, classification, location, responsible, quantitySummary, values);
         if (!removable && material.status === "rejected") {
           const rejection = document.createElement("p");
           rejection.textContent = `Motivo da rejeição: ${material.rejectionReason}`;
@@ -1177,9 +1206,10 @@
           const saved = JSON.parse(localStorage.getItem(draftStorageKey) || "[]");
           if (!Array.isArray(saved)) return;
           const automaticLocation = availableStockLocations.find((location) => location.defaultForNewMaterials) || (availableStockLocations.length === 1 ? availableStockLocations[0] : null);
+          const automaticContact = availableCommercialContacts.find((contact) => contact.primary) || availableCommercialContacts[0] || null;
           const restored = saved.filter((material) => material && typeof material.id === "string").slice(0, 100).map((material) => {
-            if (material.stockLocationId || !automaticLocation) return material;
-            return { ...material, stockLocationId: automaticLocation.id, publicLocation: automaticLocation };
+            const restoredMaterial = material.stockLocationId || !automaticLocation ? material : { ...material, stockLocationId: automaticLocation.id, publicLocation: automaticLocation };
+            return restoredMaterial.commercialContactId || !automaticContact ? restoredMaterial : { ...restoredMaterial, commercialContactId: automaticContact.id };
           });
           drafts.splice(0, drafts.length, ...restored);
         } catch {
@@ -1190,7 +1220,7 @@
       function renderDrafts() {
         draftList.replaceChildren(...drafts.map((material) => createCard(material, true)));
         emptyDraft.hidden = drafts.length > 0;
-        submitMaterials.disabled = drafts.length === 0 || drafts.some((material) => !material.stockLocationId);
+        submitMaterials.disabled = drafts.length === 0 || drafts.some((material) => !material.stockLocationId || !material.commercialContactId);
         clearDraft.disabled = drafts.length === 0;
         saveDrafts();
       }
@@ -1205,6 +1235,7 @@
           document.querySelector("#active-account").title = `Empresa conectada: ${result.companyName}`;
           configureWorkspace(result.companyInterest);
           renderStockLocationOptions(result.stockLocations || [], stockLocation.value);
+          renderCommercialContactOptions(result.commercialContacts || [], commercialContact.value);
           draftStorageKey = `global-shared-stock:rascunho:${result.companyId}`;
           restoreDrafts();
           renderDrafts();
@@ -1496,7 +1527,36 @@
           item.append(formalization);
         }
         if (!sold && negotiation.perspective === "seller" && negotiation.status === "commission_po_submitted") { const waiting = document.createElement("p"); waiting.className = "message success"; waiting.textContent = "Ordem de Compra enviada. Aguarde a validação da Global Shared Stock."; item.append(waiting); }
-        if (["commission_secured", "sold"].includes(negotiation.status) && negotiation.counterparty) { const contact = document.createElement("section"); contact.className = "reference-data shared-response"; const heading = document.createElement("h4"); heading.textContent = sold ? "Contato da empresa na negociação concluída" : "Contato liberado para conclusão"; const text = document.createElement("p"); text.textContent = `${negotiation.counterparty.companyName}\nContato: ${negotiation.counterparty.primaryContact}\nE-mail: ${negotiation.counterparty.primaryEmail}`; text.style.whiteSpace = "pre-line"; contact.append(heading, text); item.append(contact); }
+        if (["commission_secured", "sold"].includes(negotiation.status) && negotiation.releasedData?.counterparty) {
+          const released = negotiation.releasedData;
+          const person = released.counterparty.contact || {};
+          const contact = document.createElement("section");
+          contact.className = "reference-data shared-response";
+          const heading = document.createElement("h4");
+          heading.textContent = "Dados liberados para conclusão";
+          const lines = [
+            released.counterparty.companyName,
+            `Contato: ${person.name || "Não informado"}`,
+            person.role ? `Cargo: ${person.role}` : "",
+            person.email ? `E-mail: ${person.email}` : "",
+            person.phone ? `Telefone: ${person.phone}` : "",
+            person.whatsapp ? `WhatsApp: ${person.whatsapp}` : "",
+            person.preferredContact ? `Meio preferido: ${contactPreferenceLabels[person.preferredContact] || person.preferredContact}` : "",
+          ];
+          if (released.stockLocation) {
+            const location = released.stockLocation;
+            const address = location.protectedAddress || {};
+            lines.push("", "Local para retirada", location.name || "", `${address.street || ""}, ${address.number || ""}${address.complement ? ` — ${address.complement}` : ""}`, `${address.neighborhood || ""} — ${address.city || ""}, ${location.state || ""}`, `CEP: ${address.postalCode || ""} — ${location.country || ""}`);
+            if (address.pickupReference) lines.push(`Orientações: ${address.pickupReference}`);
+            if (address.accessRestrictions) lines.push(`Restrições de acesso: ${address.accessRestrictions}`);
+            if (address.loadingResources) lines.push(`Recursos para carregamento: ${address.loadingResources}`);
+          }
+          const text = document.createElement("p");
+          text.textContent = lines.filter((line, index) => line || (index > 0 && lines[index - 1])).join("\n");
+          text.style.whiteSpace = "pre-line";
+          contact.append(heading, text);
+          item.append(contact);
+        }
         if (!sold && negotiation.perspective === "seller" && negotiation.status === "seller_adjustment_requested" && negotiation.buyerDecision) {
           const proposal = document.createElement("section"); proposal.className = "reference-data shared-response";
           const proposalTitle = document.createElement("h4"); proposalTitle.textContent = "Ajuste solicitado — identidade protegida";
@@ -1756,6 +1816,7 @@
           id: currentMaterialId, partNumber: document.querySelector("#part-number").value.trim(), manufacturer: document.querySelector("#manufacturer").value.trim(),
           description: document.querySelector("#description").value.trim(), category: category.value,
           stockLocationId: stockLocation.value,
+          commercialContactId: commercialContact.value,
           publicLocation: availableStockLocations.find((location) => location.id === stockLocation.value) || null,
           otherCategory: otherCategory.value.trim(), subcategory: subcategory.value,
           otherSubcategory: otherSubcategory.value.trim(), materialType: materialType.value,

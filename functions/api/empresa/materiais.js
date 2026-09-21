@@ -27,7 +27,7 @@ function materialWithQuantities(material) {
   return { ...material, quantity: summary.current, quantityCurrent: summary.current, quantityReserved: summary.reserved, quantitySold: summary.sold, quantityAvailable: summary.available };
 }
 
-function normalizedMaterial(input, manifest, stockLocations) {
+function normalizedMaterial(input, manifest, stockLocations, commercialContacts) {
   const quantity = Number(input.quantity);
   const unitPriceCents = Number(input.unitPriceCents);
   if (!UUID_PATTERN.test(input.id || "")) throw new Error("Identificação de material inválida.");
@@ -65,6 +65,12 @@ function normalizedMaterial(input, manifest, stockLocations) {
   const stockLocation = stockLocations.find((location) => location.id === input.stockLocationId && location.status !== "inactive");
   if (!stockLocation) throw new Error("Selecione um local de estoque válido.");
 
+  const activeContacts = commercialContacts.filter((contact) => contact.status !== "inactive");
+  const commercialContact = activeContacts.find((contact) => contact.id === input.commercialContactId)
+    || activeContacts.find((contact) => contact.primary)
+    || activeContacts[0];
+  if (!commercialContact) throw new Error("Cadastre um contato comercial ativo antes de adicionar materiais.");
+
   const requestedFileIds = Array.isArray(input.files) ? [...new Set(input.files.map((file) => file?.id).filter(Boolean))] : [];
   const files = requestedFileIds.map((id) => manifest.find((file) => file.id === id)).filter(Boolean);
   if (files.length !== requestedFileIds.length) throw new Error("Um dos arquivos do material não foi encontrado. Envie-o novamente.");
@@ -86,6 +92,7 @@ function normalizedMaterial(input, manifest, stockLocations) {
     manufacturer: cleanText(input.manufacturer, 150),
     description: cleanText(input.description, 1000),
     stockLocationId: stockLocation.id,
+    commercialContactId: commercialContact.id,
     publicLocation: { name: stockLocation.name, country: stockLocation.country, state: stockLocation.state },
     category,
     otherCategory: category === OTHER_CLASSIFICATION ? otherCategory : "",
@@ -132,7 +139,8 @@ export async function onRequestGet(context) {
   } while (cursor);
   materials.sort((first, second) => second.submittedAt.localeCompare(first.submittedAt));
   const stockLocations = (company.stockLocations || []).filter((location) => location.status !== "inactive").map((location) => ({ id: location.id, name: location.name, country: location.country, state: location.state, defaultForNewMaterials: Boolean(location.defaultForNewMaterials) }));
-  return Response.json({ companyId: session.companyId, companyName: company.companyName, companyInterest: company.interest, stockLocations, materials }, { headers: { "Cache-Control": "no-store" } });
+  const commercialContacts = (company.commercialContacts || []).filter((contact) => contact.status !== "inactive").map((contact) => ({ id: contact.id, name: contact.name, role: contact.role, email: contact.email, phone: contact.phone, whatsapp: contact.whatsapp, preferredContact: contact.preferredContact, primary: Boolean(contact.primary) }));
+  return Response.json({ companyId: session.companyId, companyName: company.companyName, companyInterest: company.interest, stockLocations, commercialContacts, materials }, { headers: { "Cache-Control": "no-store" } });
 }
 
 export async function onRequestPost(context) {
@@ -154,7 +162,7 @@ export async function onRequestPost(context) {
       const manifest = await context.env.CADASTROS.get(manifestKey(session.companyId, material.id), "json") || [];
       const existing = await context.env.CADASTROS.get(`material:${session.companyId}:${material.id}`, "json");
       if (existing && existing.status !== "rejected") throw new Error("Este material já foi enviado para análise.");
-      const normalized = normalizedMaterial(material, manifest, company.stockLocations || []);
+      const normalized = normalizedMaterial(material, manifest, company.stockLocations || [], company.commercialContacts || []);
       if (!existing) return normalized;
       const reviewHistory = Array.isArray(existing.reviewHistory) ? existing.reviewHistory : [];
       reviewHistory.push({ status: "rejected", reason: existing.rejectionReason, decidedAt: existing.decidedAt });

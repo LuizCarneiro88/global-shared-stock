@@ -1,5 +1,6 @@
 import { getSession } from "../../_auth.js";
 import { convertReservationToSale, releaseInventory, reserveInventory } from "../../_inventory.js";
+import { buildContactRelease } from "../../_contact-release.js";
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const DECISIONS = new Set(["in_intermediation", "rejected"]);
@@ -245,8 +246,14 @@ export async function onRequestPatch(context) {
   }
   if (status === "commission_secured") {
     if (interest.status !== "commission_po_submitted" || !interest.commissionPurchaseOrder) return error("Não há uma Ordem de Compra pronta para aprovação.", 409);
-    const updated = { ...interest, status: "commission_secured", commissionSecuredAt: new Date().toISOString(), commissionPurchaseOrder: { ...interest.commissionPurchaseOrder, status: "approved", reviewedAt: new Date().toISOString() } };
-    await context.env.CADASTROS.put(key, JSON.stringify(updated));
+    let contactRelease;
+    try { contactRelease = await buildContactRelease(context.env, interest, session.email); }
+    catch (caught) { return error(caught.message || "Não foi possível preparar os dados de contato para liberação.", 409); }
+    const updated = { ...interest, status: "commission_secured", commissionSecuredAt: contactRelease.releasedAt, contactRelease, commissionPurchaseOrder: { ...interest.commissionPurchaseOrder, status: "approved", reviewedAt: contactRelease.releasedAt } };
+    await Promise.all([
+      context.env.CADASTROS.put(key, JSON.stringify(updated)),
+      context.env.CADASTROS.put(`liberacao-contato:${interest.id}`, JSON.stringify(contactRelease)),
+    ]);
     return Response.json({ success: true, interest: updated, message: "Ordem de Compra aprovada e contatos liberados para as empresas." }, { headers: { "Cache-Control": "no-store" } });
   }
   if (status === "commission_po_correction_requested") {

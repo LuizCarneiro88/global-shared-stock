@@ -74,10 +74,20 @@ export async function onRequestGet(context) {
         } : undefined;
         const visible = perspective === "buyer" ? safeForBuyer(item) : safeForSeller(item);
         const { buyerReadAt, sellerReadAt, ...withoutReadReceipts } = visible;
+        const releasedParty = item.contactRelease ? (perspective === "buyer" ? item.contactRelease.seller : item.contactRelease.buyer) : null;
         const counterpartyId = perspective === "buyer" ? item.sellerCompanyId : item.buyerCompanyId;
         const counterpartyCompany = releasedCompaniesById.get(counterpartyId);
-        const counterparty = counterpartyCompany ? { companyName: counterpartyCompany.companyName, primaryContact: counterpartyCompany.primaryContact, primaryEmail: counterpartyCompany.primaryEmail } : undefined;
-        return { ...withoutReadReceipts, perspective, unreadCount, materialCondition: advertisement?.condition || "", ...(advertised ? { advertised } : {}), ...(counterparty ? { counterparty } : {}) };
+        const legacyCounterparty = counterpartyCompany ? {
+          companyName: counterpartyCompany.companyName,
+          contact: { name: counterpartyCompany.primaryContact || "", email: counterpartyCompany.primaryEmail || "", role: "", phone: "", whatsapp: "", preferredContact: "email" },
+        } : undefined;
+        const releasedData = releasedParty ? {
+          counterparty: { companyName: releasedParty.companyName, contact: releasedParty.contact },
+          ...(perspective === "buyer" ? { stockLocation: item.contactRelease.seller.stockLocation } : {}),
+          releasedAt: item.contactRelease.releasedAt,
+        } : (legacyCounterparty ? { counterparty: legacyCounterparty, releasedAt: item.commissionSecuredAt } : undefined);
+        const { contactRelease, ...withoutReleaseRecord } = withoutReadReceipts;
+        return { ...withoutReleaseRecord, perspective, unreadCount, materialCondition: advertisement?.condition || "", ...(advertised ? { advertised } : {}), ...(releasedData ? { releasedData } : {}) };
       };
       const ownInterests = interests.filter((item) => item.buyerCompanyId === session.companyId).map(safeForBuyer);
       const negotiations = interests

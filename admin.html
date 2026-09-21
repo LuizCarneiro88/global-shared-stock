@@ -1192,6 +1192,20 @@
           const orderLink = document.createElement("a"); orderLink.className = "document-button"; orderLink.href = `/api/interesses/${interest.id}/ordem-compra`; orderLink.target = "_blank"; orderLink.rel = "noopener"; orderLink.textContent = `Visualizar Ordem de Compra — ${interest.commissionPurchaseOrder.name}`;
           order.append(orderTitle, orderDetails, orderLink); article.append(order);
         }
+        if (interest.contactRelease) {
+          const release = document.createElement("section"); release.className = "documents";
+          const releaseTitle = document.createElement("h3"); releaseTitle.textContent = "Dados liberados para conclusão";
+          const releaseDetails = document.createElement("dl"); releaseDetails.className = "details";
+          const buyerContact = interest.contactRelease.buyer?.contact || {};
+          const sellerContact = interest.contactRelease.seller?.contact || {};
+          const location = interest.contactRelease.seller?.stockLocation || {};
+          const address = location.protectedAddress || {};
+          addDetail(releaseDetails, "Contato da compradora", `${buyerContact.name || "Não informado"} — ${buyerContact.email || "sem e-mail"}`);
+          addDetail(releaseDetails, "Contato da vendedora", `${sellerContact.name || "Não informado"} — ${sellerContact.email || "sem e-mail"}`);
+          addDetail(releaseDetails, "Local de retirada", `${address.street || ""}, ${address.number || ""}${address.complement ? ` — ${address.complement}` : ""} — ${address.city || ""}, ${location.state || ""} — ${location.country || ""}`);
+          addDetail(releaseDetails, "Liberado em", new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short" }).format(new Date(interest.contactRelease.releasedAt)));
+          release.append(releaseTitle, releaseDetails); article.append(release);
+        }
         if (["received", "resubmitted"].includes(interest.status)) {
           const review = document.createElement("section");
           review.className = "material-review";
