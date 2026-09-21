@@ -1025,6 +1025,97 @@
           correctionActions.append(correct);
           item.append(rejection, correctionActions);
         }
+        if (!removable && material.status === "approved") {
+          const requestLabels = { change: "Alteração", suspend: "Suspensão temporária", withdraw: "Retirada", reactivate: "Reativação" };
+          if (material.advertisementRequest?.status === "pending") {
+            const pending = document.createElement("p");
+            pending.className = "message success";
+            pending.textContent = `${requestLabels[material.advertisementRequest.type]} solicitada em ${new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short" }).format(new Date(material.advertisementRequest.createdAt))}. Aguardando análise administrativa.`;
+            item.append(pending);
+          } else if (material.advertisementStatus !== "withdrawn" && quantityAvailable > 0) {
+            if (material.advertisementRequest?.status === "returned") {
+              const returned = document.createElement("p"); returned.className = "message error"; returned.textContent = `Solicitação devolvida: ${material.advertisementRequest.reviewReason}`; item.append(returned);
+            }
+            const actions = document.createElement("div");
+            actions.className = "card-actions";
+            const manage = document.createElement("button"); manage.type = "button"; manage.textContent = material.advertisementStatus === "suspended" ? "Solicitar reativação" : "Gerenciar anúncio"; actions.append(manage);
+            const choices = document.createElement("div"); choices.className = "card-actions"; choices.hidden = true;
+            const form = document.createElement("form");
+            form.className = "fields";
+            form.hidden = true;
+            const changeFields = document.createElement("div"); changeFields.className = "fields field-wide"; changeFields.hidden = true;
+            const makeField = (labelText, control, wide = false) => { const field = document.createElement("div"); if (wide) field.className = "field-wide"; const label = document.createElement("label"); label.textContent = labelText; field.append(label, control); changeFields.append(field); };
+            const proposedPartNumber = document.createElement("input"); proposedPartNumber.value = material.partNumber || "";
+            const proposedManufacturer = document.createElement("input"); proposedManufacturer.value = material.manufacturer || "";
+            const proposedDescription = document.createElement("textarea"); proposedDescription.required = true; proposedDescription.maxLength = 1000; proposedDescription.value = material.description;
+            const proposedCondition = document.createElement("select"); proposedCondition.required = true; Object.entries(conditionLabels).forEach(([value, label]) => proposedCondition.append(new Option(label, value))); proposedCondition.value = material.condition;
+            const proposedQuantity = document.createElement("input"); proposedQuantity.type = "number"; proposedQuantity.inputMode = "decimal"; proposedQuantity.min = String(quantityReserved + quantitySold || 0.001); proposedQuantity.step = "0.001"; proposedQuantity.required = true; proposedQuantity.value = quantityCurrent;
+            const proposedPrice = document.createElement("input"); proposedPrice.type = "text"; proposedPrice.inputMode = "decimal"; proposedPrice.required = true; proposedPrice.value = americanNumber.format(material.unitPriceCents / 100);
+            const proposedPhotos = document.createElement("input"); proposedPhotos.type = "file"; proposedPhotos.accept = "image/jpeg,image/png,image/webp"; proposedPhotos.multiple = true;
+            const certificateAction = document.createElement("select"); certificateAction.append(new Option("Manter certificado atual", "keep"), new Option("Remover certificado", "remove"), new Option("Substituir certificado", "replace")); if (!material.hasCertificate) certificateAction.value = "remove";
+            const proposedCertificate = document.createElement("input"); proposedCertificate.type = "file"; proposedCertificate.accept = "application/pdf,image/jpeg,image/png,image/webp"; proposedCertificate.hidden = true;
+            makeField("Part number (opcional)", proposedPartNumber); makeField("Fabricante (opcional)", proposedManufacturer); makeField("Descrição *", proposedDescription, true); makeField("Condição *", proposedCondition); makeField("Quantidade total *", proposedQuantity); makeField("Preço final unitário (US$) *", proposedPrice); makeField("Novas fotografias (opcional, substituem as atuais)", proposedPhotos, true); makeField("Certificado", certificateAction); makeField("Novo certificado", proposedCertificate);
+            const reason = document.createElement("textarea");
+            reason.className = "field-wide";
+            reason.required = true;
+            reason.minLength = 10;
+            reason.maxLength = 800;
+            const submit = document.createElement("button");
+            submit.type = "submit";
+            const cancel = document.createElement("button");
+            cancel.type = "button";
+            cancel.className = "secondary";
+            cancel.textContent = "Cancelar";
+            const feedback = document.createElement("p");
+            feedback.className = "message error field-wide";
+            feedback.hidden = true;
+            form.append(changeFields, reason, submit, cancel, feedback);
+            let selectedType = "";
+            const openRequest = (type) => {
+              selectedType = type;
+              changeFields.hidden = type !== "change";
+              reason.placeholder = type === "change" ? "Explique resumidamente o motivo das alterações." : type === "suspend" ? "Explique por que o anúncio deve ser suspenso temporariamente." : type === "reactivate" ? "Explique por que o anúncio deve voltar à pesquisa." : "Explique por que o anúncio deve ser retirado da plataforma.";
+              submit.textContent = `Enviar solicitação de ${requestLabels[type].toLowerCase()}`;
+              choices.hidden = true;
+              form.hidden = false;
+              reason.focus();
+            };
+            const availableChoices = material.advertisementStatus === "suspended" ? [["reactivate", "Solicitar reativação", ""]] : [["change", "Alterar anúncio", ""], ["suspend", "Suspender temporariamente", "secondary"], ["withdraw", "Retirar da plataforma", "danger"]];
+            availableChoices.forEach(([type, label, className]) => {
+              const button = document.createElement("button");
+              button.type = "button";
+              button.textContent = label;
+              button.className = className;
+              button.addEventListener("click", () => openRequest(type));
+              choices.append(button);
+            });
+            manage.addEventListener("click", () => { if (material.advertisementStatus === "suspended") openRequest("reactivate"); else { manage.hidden = true; choices.hidden = false; } });
+            certificateAction.addEventListener("change", () => { proposedCertificate.hidden = certificateAction.value !== "replace"; proposedCertificate.required = certificateAction.value === "replace"; });
+            proposedPrice.addEventListener("input", () => { proposedPrice.value = formatPriceInput(proposedPrice.value); });
+            cancel.addEventListener("click", () => { form.hidden = true; choices.hidden = true; manage.hidden = false; reason.value = ""; feedback.hidden = true; });
+            form.addEventListener("submit", async (event) => {
+              event.preventDefault();
+              if (!form.reportValidity()) return;
+              if (selectedType === "change" && proposedPhotos.files.length > 6) { feedback.textContent = "Envie no máximo 6 fotografias."; feedback.hidden = false; return; }
+              submit.disabled = true; cancel.disabled = true; feedback.hidden = true;
+              try {
+                const data = { materialId: material.id, type: selectedType, reason: reason.value };
+                if (selectedType === "change") { data.proposal = { partNumber: proposedPartNumber.value, manufacturer: proposedManufacturer.value, description: proposedDescription.value, condition: proposedCondition.value, quantityCurrent: Number(proposedQuantity.value), unitPriceCents: priceInCents(proposedPrice.value) }; data.certificateAction = certificateAction.value; }
+                const body = new FormData(); body.set("data", JSON.stringify(data)); [...proposedPhotos.files].forEach((file) => body.append("photos", file)); if (proposedCertificate.files[0]) body.set("certificate", proposedCertificate.files[0]);
+                const response = await fetch("/api/empresa/solicitacoes-anuncio", { method: "POST", headers: { Accept: "application/json" }, body });
+                const result = await response.json();
+                if (!response.ok) throw new Error(result.message || "Não foi possível enviar a solicitação.");
+                material.advertisementRequest = result.request;
+                item.replaceWith(createCard(material));
+              } catch (error) {
+                feedback.textContent = error.message; feedback.hidden = false; submit.disabled = false; cancel.disabled = false;
+              }
+            });
+            item.append(actions, choices, form);
+          } else if (material.advertisementStatus === "withdrawn") {
+            const withdrawn = document.createElement("p"); withdrawn.className = "message"; withdrawn.textContent = "Anúncio retirado da plataforma."; item.append(withdrawn);
+          }
+        }
         if (removable) {
           const actions = document.createElement("div");
           actions.className = "card-actions";

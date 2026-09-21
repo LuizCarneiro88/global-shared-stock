@@ -8,7 +8,8 @@ async function information(context) {
   if (!MATERIAL_ID_PATTERN.test(materialId) || !FILE_ID_PATTERN.test(fileId)) return { error: new Response("Arquivo inválido.", { status: 400 }) };
   const key = manifestKey(session.companyId, materialId);
   const manifest = await context.env.CADASTROS.get(key, "json") || [];
-  const metadata = manifest.find((item) => item.id === fileId);
+  const material = await context.env.CADASTROS.get(`material:${session.companyId}:${materialId}`, "json");
+  const metadata = (material?.files || []).find((item) => item.id === fileId) || manifest.find((item) => item.id === fileId);
   if (!metadata) return { error: new Response("Arquivo não encontrado.", { status: 404 }) };
   return { session, materialId, fileId, key, manifest, metadata };
 }
@@ -17,7 +18,7 @@ export async function onRequestGet(context) {
   if (!context.env.CADASTROS || !context.env.MATERIAL_FILES) return new Response("Armazenamento não configurado.", { status: 503 });
   const result = await information(context);
   if (result.error) return result.error;
-  const object = await context.env.MATERIAL_FILES.get(objectKey(result.session.companyId, result.materialId, result.fileId));
+  const object = await context.env.MATERIAL_FILES.get(objectKey(result.session.companyId, result.metadata.storageMaterialId || result.materialId, result.fileId));
   return fileResponse(object, result.metadata);
 }
 

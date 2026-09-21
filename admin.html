@@ -98,7 +98,7 @@
 
       .admin-tabs {
         display: grid;
-        grid-template-columns: repeat(4, minmax(0, 1fr));
+        grid-template-columns: repeat(5, minmax(0, 1fr));
         gap: 8px;
         margin-bottom: 22px;
         padding: 6px;
@@ -497,6 +497,7 @@
       <nav class="admin-tabs" aria-label="Áreas de validação" role="tablist">
         <button id="companies-tab" class="tab-button" type="button" role="tab" aria-selected="true" aria-controls="companies-panel">Validação de empresas</button>
         <button id="materials-tab" class="tab-button" type="button" role="tab" aria-selected="false" aria-controls="materials-panel">Validação de materiais</button>
+        <button id="advertisement-requests-tab" class="tab-button" type="button" role="tab" aria-selected="false" aria-controls="advertisement-requests-panel">Solicitações de anúncios</button>
         <button id="interests-tab" class="tab-button" type="button" role="tab" aria-selected="false" aria-controls="interests-panel">Interesses</button>
         <button id="users-tab" class="tab-button" type="button" role="tab" aria-selected="false" aria-controls="users-panel">Usuários e acessos</button>
       </nav>
@@ -515,6 +516,15 @@
           <div class="summary-item"><strong id="total-material-count" class="summary-number">0</strong><span class="summary-label">Materiais enviados</span></div>
         </section>
         <section id="material-list" class="company-list" aria-live="polite"><p class="empty-state">Carregando materiais...</p></section>
+      </section>
+
+      <section id="advertisement-requests-panel" class="tab-panel" role="tabpanel" aria-labelledby="advertisement-requests-tab" hidden>
+        <section class="summary" aria-label="Resumo das solicitações de anúncios">
+          <div class="summary-item"><strong id="pending-advertisement-request-count" class="summary-number">0</strong><span class="summary-label">Aguardando análise</span></div>
+          <div class="summary-item"><strong id="total-advertisement-request-count" class="summary-number">0</strong><span class="summary-label">Solicitações registradas</span></div>
+        </section>
+        <div class="panel-toolbar"><button id="refresh-advertisement-requests" class="refresh-button" type="button">Atualizar solicitações</button></div>
+        <section id="advertisement-request-list" class="company-list" aria-live="polite"><p class="empty-state">Carregando solicitações...</p></section>
       </section>
 
       <section id="interests-panel" class="tab-panel" role="tabpanel" aria-labelledby="interests-tab" hidden>
@@ -550,6 +560,10 @@
       const materialList = document.querySelector("#material-list");
       const pendingMaterialCount = document.querySelector("#pending-material-count");
       const totalMaterialCount = document.querySelector("#total-material-count");
+      const advertisementRequestList = document.querySelector("#advertisement-request-list");
+      const pendingAdvertisementRequestCount = document.querySelector("#pending-advertisement-request-count");
+      const totalAdvertisementRequestCount = document.querySelector("#total-advertisement-request-count");
+      const refreshAdvertisementRequests = document.querySelector("#refresh-advertisement-requests");
       const interestList = document.querySelector("#interest-list");
       const newInterestCount = document.querySelector("#new-interest-count");
       const totalInterestCount = document.querySelector("#total-interest-count");
@@ -597,6 +611,7 @@
 
       document.querySelector("#companies-tab").addEventListener("click", (event) => selectTab(event.currentTarget, document.querySelector("#companies-panel")));
       document.querySelector("#materials-tab").addEventListener("click", (event) => selectTab(event.currentTarget, document.querySelector("#materials-panel")));
+      document.querySelector("#advertisement-requests-tab").addEventListener("click", (event) => { selectTab(event.currentTarget, document.querySelector("#advertisement-requests-panel")); loadAdvertisementRequests(); });
       document.querySelector("#interests-tab").addEventListener("click", (event) => selectTab(event.currentTarget, document.querySelector("#interests-panel")));
       document.querySelector("#users-tab").addEventListener("click", (event) => { selectTab(event.currentTarget, document.querySelector("#users-panel")); loadUsers(); });
 
@@ -1551,6 +1566,74 @@
       }
 
       refreshUsers.addEventListener("click", loadUsers);
+
+      function createAdvertisementRequestCard(request) {
+        const typeLabels = { change: "Alteração", suspend: "Suspensão temporária", withdraw: "Retirada", reactivate: "Reativação" };
+        const requestStatusLabels = { pending: "Aguardando análise", approved: "Aprovada", returned: "Devolvida à empresa" };
+        const article = document.createElement("article"); article.className = "company-card";
+        const header = document.createElement("div"); header.className = "card-header";
+        const title = document.createElement("h2"); title.textContent = request.material?.description || "Material não encontrado";
+        const status = document.createElement("span"); status.className = `status ${request.status === "approved" ? "approved" : request.status === "returned" ? "rejected" : ""}`.trim(); status.textContent = requestStatusLabels[request.status] || request.status;
+        header.append(title, status);
+        const compact = document.createElement("div"); compact.className = "interest-card-summary";
+        const compactText = document.createElement("p"); compactText.textContent = `${request.companyName} · ${typeLabels[request.type]} · ${new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short" }).format(new Date(request.createdAt))}`;
+        const toggle = document.createElement("button"); toggle.type = "button"; toggle.className = "interest-card-toggle"; toggle.textContent = "Abrir"; toggle.setAttribute("aria-expanded", "false");
+        compact.append(compactText, toggle);
+        const details = document.createElement("div"); details.className = "interest-card-details"; details.hidden = true;
+        const information = document.createElement("dl"); information.className = "details";
+        addDetail(information, "Empresa vendedora", request.companyName); addDetail(information, "Solicitação", typeLabels[request.type]); addDetail(information, "Motivo", request.reason);
+        if (request.material) {
+          const current = Number(request.material.quantityCurrent ?? request.material.quantity) || 0; const reserved = Number(request.material.quantityReserved) || 0; const sold = Number(request.material.quantitySold) || 0;
+          addDetail(information, "Quantidade atual", String(current)); addDetail(information, "Reservada", String(reserved)); addDetail(information, "Vendida", String(sold)); addDetail(information, "Disponível", String(Math.max(0, current - reserved - sold)));
+        }
+        details.append(information);
+        if (request.type === "change" && request.proposal) {
+          const proposalTitle = document.createElement("h3"); proposalTitle.textContent = "Dados propostos";
+          const proposal = document.createElement("dl"); proposal.className = "details";
+          addDetail(proposal, "Part number", request.proposal.partNumber); addDetail(proposal, "Fabricante", request.proposal.manufacturer); addDetail(proposal, "Descrição", request.proposal.description); addDetail(proposal, "Condição", conditionLabels[request.proposal.condition]); addDetail(proposal, "Quantidade total", String(request.proposal.quantityCurrent)); addDetail(proposal, "Preço final unitário", money.format(request.proposal.unitPriceCents / 100));
+          details.append(proposalTitle, proposal);
+          if (request.proposedFiles?.length) {
+            const files = document.createElement("div"); files.className = "material-files";
+            const filesTitle = document.createElement("h3"); filesTitle.textContent = "Novos arquivos propostos"; files.append(filesTitle);
+            request.proposedFiles.forEach((file) => { const link = document.createElement("a"); link.href = `/api/solicitacoes-anuncio/${request.id}/arquivos/${file.id}`; link.target = "_blank"; link.rel = "noopener"; link.textContent = `${file.kind === "photo" ? "Fotografia" : "Certificado"}: ${file.name}`; files.append(link, document.createElement("br")); });
+            details.append(files);
+          }
+        }
+        if (request.reviewReason) { const reviewed = document.createElement("p"); reviewed.className = "interest-note"; reviewed.textContent = `Orientação enviada à empresa: ${request.reviewReason}`; details.append(reviewed); }
+        if (request.status === "pending") {
+          const actions = document.createElement("div"); actions.className = "actions";
+          const approve = document.createElement("button"); approve.type = "button"; approve.className = "action-button approve-button"; approve.textContent = "Aprovar";
+          const returnButton = document.createElement("button"); returnButton.type = "button"; returnButton.className = "action-button reject-button"; returnButton.textContent = "Devolver à empresa"; actions.append(approve, returnButton);
+          const returnForm = document.createElement("div"); returnForm.className = "material-review"; returnForm.hidden = true;
+          const reason = document.createElement("textarea"); reason.placeholder = "Explique claramente o que a empresa precisa corrigir."; reason.maxLength = 800;
+          const confirmReturn = document.createElement("button"); confirmReturn.type = "button"; confirmReturn.className = "action-button reject-button"; confirmReturn.textContent = "Confirmar devolução";
+          const feedback = document.createElement("p"); feedback.className = "feedback"; feedback.hidden = true; returnForm.append(reason, confirmReturn);
+          const decide = async (decision) => {
+            if (decision === "return" && reason.value.trim().length < 10) { reason.setCustomValidity("Explique o motivo com pelo menos 10 caracteres."); reason.reportValidity(); return; }
+            reason.setCustomValidity(""); approve.disabled = true; returnButton.disabled = true; confirmReturn.disabled = true; feedback.hidden = true;
+            try { const response = await fetch(`/api/solicitacoes-anuncio/${request.id}`, { method: "PATCH", headers: { "Content-Type": "application/json", Accept: "application/json" }, body: JSON.stringify({ decision, reason: reason.value }) }); const result = await response.json(); if (!response.ok) throw new Error(result.message || "Não foi possível concluir a análise."); await loadAdvertisementRequests(); }
+            catch (error) { feedback.textContent = error.message; feedback.hidden = false; approve.disabled = false; returnButton.disabled = false; confirmReturn.disabled = false; }
+          };
+          approve.addEventListener("click", () => { if (confirm("Confirma a aprovação e a atualização do anúncio?")) decide("approve"); }); returnButton.addEventListener("click", () => { returnForm.hidden = false; reason.focus(); }); confirmReturn.addEventListener("click", () => decide("return"));
+          details.append(actions, returnForm, feedback);
+        }
+        toggle.addEventListener("click", () => { details.hidden = !details.hidden; toggle.textContent = details.hidden ? "Abrir" : "Fechar"; toggle.setAttribute("aria-expanded", String(!details.hidden)); });
+        article.append(header, compact, details); return article;
+      }
+
+      async function loadAdvertisementRequests() {
+        refreshAdvertisementRequests.disabled = true;
+        try {
+          const response = await fetch("/api/solicitacoes-anuncio", { cache: "no-store", headers: { Accept: "application/json" } }); const result = await response.json();
+          if (!response.ok) throw new Error(result.message || "Não foi possível carregar as solicitações.");
+          pendingAdvertisementRequestCount.textContent = result.requests.filter((request) => request.status === "pending").length; totalAdvertisementRequestCount.textContent = result.requests.length; advertisementRequestList.replaceChildren();
+          if (!result.requests.length) advertisementRequestList.append(Object.assign(document.createElement("p"), { className: "empty-state", textContent: "Nenhuma solicitação de anúncio foi registrada." }));
+          else result.requests.forEach((request) => advertisementRequestList.append(createAdvertisementRequestCard(request)));
+        } catch (error) { advertisementRequestList.replaceChildren(Object.assign(document.createElement("p"), { className: "empty-state", textContent: error.message })); }
+        finally { refreshAdvertisementRequests.disabled = false; }
+      }
+
+      refreshAdvertisementRequests.addEventListener("click", loadAdvertisementRequests);
 
       async function loadInterests() {
         if (interestsAreLoading) return;

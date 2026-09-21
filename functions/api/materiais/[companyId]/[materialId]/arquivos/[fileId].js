@@ -7,9 +7,9 @@ export async function onRequestGet(context) {
   const material = await context.env.CADASTROS.get(`material:${companyId}:${materialId}`, "json");
   if (!material) return new Response("Material não encontrado.", { status: 404 });
   const manifest = await context.env.CADASTROS.get(manifestKey(companyId, materialId), "json") || [];
-  const metadata = manifest.find((item) => item.id === fileId);
+  const metadata = (material.files || []).find((item) => item.id === fileId) || manifest.find((item) => item.id === fileId);
   if (!metadata) return new Response("Arquivo não encontrado.", { status: 404 });
-  const object = await context.env.MATERIAL_FILES.get(objectKey(companyId, materialId, fileId));
+  const object = await context.env.MATERIAL_FILES.get(objectKey(companyId, metadata.storageMaterialId || materialId, fileId));
   return fileResponse(object, metadata);
 }
 

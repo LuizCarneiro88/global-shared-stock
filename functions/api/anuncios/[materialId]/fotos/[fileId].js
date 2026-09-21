@@ -8,7 +8,7 @@ export async function onRequestGet(context) {
   if (!advertisement || advertisement.status !== "published") return new Response("Anúncio não encontrado.", { status: 404 });
   const metadata = (advertisement.files || []).find((file) => file.id === fileId && file.kind === "photo");
   if (!metadata) return new Response("Fotografia não encontrada.", { status: 404 });
-  const object = await context.env.MATERIAL_FILES.get(objectKey(advertisement.companyId, materialId, fileId));
+  const object = await context.env.MATERIAL_FILES.get(objectKey(advertisement.companyId, metadata.storageMaterialId || materialId, fileId));
   return fileResponse(object, metadata);
 }
 
