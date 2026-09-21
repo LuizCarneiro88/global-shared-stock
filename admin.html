@@ -545,6 +545,8 @@
         </section>
         <div class="panel-toolbar"><button id="refresh-users" class="refresh-button" type="button">Atualizar usuários</button></div>
         <section id="user-list" class="company-list" aria-live="polite"><p class="empty-state">Carregando usuários...</p></section>
+        <h2>Transferências de usuário principal</h2>
+        <section id="primary-transfer-list" class="company-list" aria-live="polite"><p class="empty-state">Carregando transferências...</p></section>
       </section>
 
       <a class="back-link" href="index.html">Voltar ao início</a>
@@ -572,6 +574,7 @@
       const pendingUserCount = document.querySelector("#pending-user-count");
       const activeUserCount = document.querySelector("#active-user-count");
       const refreshUsers = document.querySelector("#refresh-users");
+      const primaryTransferList = document.querySelector("#primary-transfer-list");
       let interestsAreLoading = false;
       let expandedAdminInterestId = "";
 
@@ -1545,8 +1548,37 @@
           approve.addEventListener("click", () => decide("approve"));
           reject.addEventListener("click", () => decide("reject"));
         }
+        if (user.role === "additional" && user.active && user.emailConfirmedAt && user.adminApprovedAt) {
+          const emergency = document.createElement("button"); emergency.className = "action-button reject-button"; emergency.type = "button"; emergency.textContent = "Transferência excepcional";
+          emergency.addEventListener("click", async () => {
+            const reason = prompt("Informe o motivo excepcional da transferência:"); if (!reason?.trim()) return;
+            emergency.disabled = true; feedback.hidden = true;
+            try { const response = await fetch("/api/transferencias-principal", { method: "POST", headers: { "Content-Type": "application/json", Accept: "application/json" }, body: JSON.stringify({ newPrimaryUserId: user.userId, reason }) }); const result = await response.json(); if (!response.ok) throw new Error(result.message || "Não foi possível iniciar a transferência."); feedback.textContent = `${result.message} Link provisório para teste: ${result.confirmationLink}`; feedback.hidden = false; await loadPrimaryTransfers(); }
+            catch (error) { feedback.textContent = error.message; feedback.hidden = false; emergency.disabled = false; }
+          });
+          actions.append(emergency);
+        }
         article.append(header, details, actions, feedback);
         return article;
+      }
+
+      function createPrimaryTransferCard(transfer) {
+        const labels = { awaiting_confirmation: "Aguardando novo principal", awaiting_admin: "Aguardando aprovação", approved: "Aprovada", returned: "Devolvida" };
+        const article = document.createElement("article"); article.className = "company-card";
+        const header = document.createElement("div"); header.className = "card-header"; const title = document.createElement("h2"); title.textContent = transfer.companyName; const status = document.createElement("span"); status.className = `status ${transfer.status === "approved" ? "approved" : transfer.status === "returned" ? "rejected" : ""}`.trim(); status.textContent = labels[transfer.status] || transfer.status; header.append(title, status);
+        const details = document.createElement("dl"); details.className = "details"; addDetail(details, "Principal atual", `${transfer.currentPrimaryName} · ${transfer.currentPrimaryEmail}`); addDetail(details, "Novo principal", `${transfer.newPrimaryName} · ${transfer.newPrimaryEmail}`); addDetail(details, "Origem", transfer.initiatedBy === "admin" ? "Transferência excepcional administrativa" : "Solicitação da empresa"); if (transfer.exceptionalReason) addDetail(details, "Motivo excepcional", transfer.exceptionalReason); if (transfer.reviewReason) addDetail(details, "Motivo da devolução", transfer.reviewReason);
+        const feedback = document.createElement("p"); feedback.className = "feedback"; feedback.hidden = true; article.append(header, details);
+        if (transfer.status === "awaiting_admin") {
+          const actions = document.createElement("div"); actions.className = "actions"; const approve = document.createElement("button"); approve.type = "button"; approve.className = "action-button approve-button"; approve.textContent = "Aprovar transferência"; const returnButton = document.createElement("button"); returnButton.type = "button"; returnButton.className = "action-button reject-button"; returnButton.textContent = "Devolver"; actions.append(approve, returnButton);
+          const decide = async (decision) => { const reason = decision === "return" ? prompt("Explique o motivo da devolução:") : ""; if (decision === "return" && (!reason || reason.trim().length < 10)) return; approve.disabled = true; returnButton.disabled = true; try { const response = await fetch(`/api/transferencias-principal/${transfer.id}`, { method: "PATCH", headers: { "Content-Type": "application/json", Accept: "application/json" }, body: JSON.stringify({ decision, reason }) }); const result = await response.json(); if (!response.ok) throw new Error(result.message || "Não foi possível concluir a decisão."); await Promise.all([loadPrimaryTransfers(), loadUsers()]); } catch (error) { feedback.textContent = error.message; feedback.hidden = false; approve.disabled = false; returnButton.disabled = false; } };
+          approve.addEventListener("click", () => { if (confirm("Confirma a troca do usuário principal?")) decide("approve"); }); returnButton.addEventListener("click", () => decide("return")); article.append(actions);
+        }
+        article.append(feedback); return article;
+      }
+
+      async function loadPrimaryTransfers() {
+        try { const response = await fetch("/api/transferencias-principal", { cache: "no-store", headers: { Accept: "application/json" } }); const result = await response.json(); if (!response.ok) throw new Error(result.message || "Não foi possível carregar as transferências."); primaryTransferList.replaceChildren(); if (!result.transfers.length) primaryTransferList.append(Object.assign(document.createElement("p"), { className: "empty-state", textContent: "Nenhuma transferência registrada." })); else result.transfers.forEach((transfer) => primaryTransferList.append(createPrimaryTransferCard(transfer))); }
+        catch (error) { primaryTransferList.replaceChildren(Object.assign(document.createElement("p"), { className: "empty-state", textContent: error.message })); }
       }
 
       async function loadUsers() {
@@ -1560,6 +1592,7 @@
           userList.replaceChildren();
           if (!result.users.length) userList.append(Object.assign(document.createElement("p"), { className: "empty-state", textContent: "Nenhum usuário individual registrado até o momento." }));
           else result.users.forEach((user) => userList.append(createUserCard(user)));
+          await loadPrimaryTransfers();
         } catch (error) {
           userList.replaceChildren(Object.assign(document.createElement("p"), { className: "empty-state", textContent: error.message }));
         } finally { refreshUsers.disabled = false; }

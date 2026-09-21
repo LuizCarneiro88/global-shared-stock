@@ -42,13 +42,19 @@ function publicUser(user) {
 export async function onRequestGet(context) {
   const session = await getSession(context.request, context.env);
   if (session?.role !== "company") return error("Acesso da empresa necessário.", 401);
-  return Response.json({ users: (await listUsers(context.env, session.companyId)).map(publicUser), canManage: !session.userId || session.userRole === "primary" }, { headers: { "Cache-Control": "no-store" } });
+  const users = await listUsers(context.env, session.companyId);
+  const primary = users.find((user) => user.role === "primary");
+  const canManage = primary?.email?.toLowerCase() === session.email?.toLowerCase();
+  const company = await context.env.CADASTROS.get(`cadastro:${session.companyId}:dados`, "json");
+  return Response.json({ users: users.map(publicUser), canManage, primaryTransfer: company?.primaryTransfer || null }, { headers: { "Cache-Control": "no-store" } });
 }
 
 export async function onRequestPost(context) {
   const session = await getSession(context.request, context.env);
   if (session?.role !== "company") return error("Acesso da empresa necessário.", 401);
-  if (session.userId && session.userRole !== "primary") return error("Somente o usuário principal pode solicitar novos acessos.", 403);
+  const existingUsers = await listUsers(context.env, session.companyId);
+  const currentPrimary = existingUsers.find((user) => user.role === "primary");
+  if (currentPrimary?.email?.toLowerCase() !== session.email?.toLowerCase()) return error("Somente o usuário principal atual pode solicitar novos acessos.", 403);
 
   let input;
   try { input = await context.request.json(); } catch { return error("Não foi possível ler os dados do usuário."); }

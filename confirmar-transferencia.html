@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Confirmar transferência | Global Shared Stock</title>
+    <link rel="stylesheet" href="styles.css" />
+    <style>
+      body { min-height: 100vh; display: grid; place-items: center; margin: 0; background: #090b0e; color: #f4f5f6; }
+      main { width: min(92%, 560px); padding: 28px; border: 1px solid #353b43; border-radius: 18px; background: #111419; }
+      h1 { margin-top: 0; }
+      p { line-height: 1.6; color: #c4c8cd; }
+      button { width: 100%; min-height: 48px; margin-top: 12px; }
+      .message { margin-top: 18px; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <p>GLOBAL SHARED STOCK</p>
+      <h1>Confirmar função de usuário principal</h1>
+      <p>Ao confirmar, você declara que aceita assumir a administração dos usuários e dos acessos da empresa. A mudança somente será concluída depois da aprovação da Global Shared Stock.</p>
+      <button id="confirm-transfer" type="button">Aceito assumir como usuário principal</button>
+      <p id="transfer-feedback" class="message" role="status" tabindex="-1" hidden></p>
+      <a href="/login">Voltar ao acesso da empresa</a>
+    </main>
+    <script>
+      const button = document.querySelector("#confirm-transfer");
+      const feedback = document.querySelector("#transfer-feedback");
+      const token = new URLSearchParams(location.search).get("token") || "";
+      if (!token) { button.disabled = true; feedback.textContent = "O link de confirmação está incompleto."; feedback.hidden = false; }
+      button.addEventListener("click", async () => {
+        button.disabled = true; feedback.hidden = true;
+        try {
+          const response = await fetch("/api/transferencia-principal/confirmar", { method: "POST", headers: { "Content-Type": "application/json", Accept: "application/json" }, body: JSON.stringify({ token }) });
+          const result = await response.json(); if (!response.ok) throw new Error(result.message || "Não foi possível confirmar a transferência.");
+          feedback.textContent = result.message; feedback.hidden = false; button.hidden = true; feedback.focus();
+        } catch (error) { feedback.textContent = error.message; feedback.hidden = false; feedback.focus(); button.disabled = false; }
+      });
+    </script>
+  </body>
+</html>

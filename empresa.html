@@ -247,6 +247,7 @@
         <section class="panel" aria-labelledby="users-title">
           <h2 id="users-title">Usuários e acessos</h2>
           <p class="introduction">Cada pessoa utiliza seu próprio e-mail e sua própria senha.</p>
+          <p id="primary-transfer-status" class="message" role="status" hidden></p>
           <ul id="company-user-list" class="material-list"><li class="material-card">Carregando usuários...</li></ul>
         </section>
         <section id="new-user-panel" class="panel" aria-labelledby="new-user-title" hidden>
@@ -403,7 +404,7 @@
         return user.active ? "Acesso liberado" : "Acesso bloqueado";
       }
 
-      function createCompanyUserCard(user) {
+      function createCompanyUserCard(user, canManage, transferPending) {
         const item = document.createElement("li");
         item.className = "material-card";
         const header = document.createElement("div");
@@ -417,6 +418,18 @@
         const information = document.createElement("p");
         information.textContent = `${user.email} · ${user.role === "primary" ? "Usuário principal" : "Usuário adicional"}`;
         item.append(header, information);
+        if (canManage && !transferPending && user.role === "additional" && user.active && user.emailConfirmedAt && user.adminApprovedAt) {
+          const actions = document.createElement("div"); actions.className = "card-actions";
+          const transfer = document.createElement("button"); transfer.type = "button"; transfer.className = "secondary"; transfer.textContent = "Transferir função principal";
+          const feedback = document.createElement("p"); feedback.className = "message field-wide"; feedback.hidden = true;
+          transfer.addEventListener("click", async () => {
+            if (!confirm(`Confirma a solicitação para transferir a função principal para ${user.name}?`)) return;
+            transfer.disabled = true; feedback.hidden = true;
+            try { const response = await fetch("/api/empresa/transferencia-principal", { method: "POST", headers: { "Content-Type": "application/json", Accept: "application/json" }, body: JSON.stringify({ newPrimaryUserId: user.userId }) }); const result = await response.json(); if (!response.ok) throw new Error(result.message || "Não foi possível solicitar a transferência."); feedback.textContent = `${result.message} Link provisório para teste: ${result.confirmationLink}`; feedback.className = "message success field-wide"; feedback.hidden = false; await loadCompanyUsers(); }
+            catch (error) { feedback.textContent = error.message; feedback.className = "message error field-wide"; feedback.hidden = false; transfer.disabled = false; }
+          });
+          actions.append(transfer, feedback); item.append(actions);
+        }
         return item;
       }
 
@@ -426,7 +439,11 @@
           const result = await response.json();
           if (!response.ok) throw new Error(result.message || "Não foi possível carregar os usuários.");
           const empty = Object.assign(document.createElement("li"), { className: "material-card", textContent: "Nenhum usuário individual registrado. O acesso atual continua preservado." });
-          companyUserList.replaceChildren(...(result.users.length ? result.users.map(createCompanyUserCard) : [empty]));
+          const transferPending = ["awaiting_confirmation", "awaiting_admin"].includes(result.primaryTransfer?.status);
+          companyUserList.replaceChildren(...(result.users.length ? result.users.map((user) => createCompanyUserCard(user, result.canManage, transferPending)) : [empty]));
+          const transferStatus = document.querySelector("#primary-transfer-status");
+          if (result.primaryTransfer) { const labels = { awaiting_confirmation: "Aguardando confirmação do novo principal", awaiting_admin: "Aguardando aprovação administrativa", approved: "Transferência aprovada", returned: `Transferência devolvida: ${result.primaryTransfer.reviewReason || "consulte a orientação"}` }; transferStatus.textContent = `${labels[result.primaryTransfer.status] || "Transferência registrada"}${result.primaryTransfer.newPrimaryName ? ` · Novo principal: ${result.primaryTransfer.newPrimaryName}` : ""}`; transferStatus.hidden = false; }
+          else transferStatus.hidden = true;
           newUserPanel.hidden = !result.canManage;
         } catch (error) {
           companyUserList.replaceChildren(Object.assign(document.createElement("li"), { className: "material-card", textContent: error.message }));

@@ -23,8 +23,8 @@ export async function onRequestGet(context) {
       inventorySize: company.inventorySize,
       status: company.status,
       primaryUser: {
-        name: company.primaryContact,
-        email: company.primaryEmail,
+        name: company.primaryUserName || company.primaryContact,
+        email: company.primaryUserEmail || company.primaryEmail,
         role: "primary",
       },
       commercialContacts: company.commercialContacts || [{
